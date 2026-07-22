@@ -15,6 +15,12 @@ The first command downloads the small pieces this app depends on (only happens o
 
 To stop it, go back to the terminal and press `Ctrl + C`.
 
+## Voice input
+
+Tapping the mic uses your browser's own built-in speech-to-text — no extra account, key, or cost. Words appear on screen as you talk; tap the mic again (or pause) to stop, and it gets processed the same way typed text does.
+
+This only works in **Chrome and Edge** (the browsers that support it). In Safari or Firefox, tapping the mic shows a short typed-out sample instead, so the rest of the flow can still be tried.
+
 ## Setting up real AI parsing (Claude)
 
 The "Accept plans" step can use Claude to actually understand what you typed (the day, time, and priority), instead of the simple built-in guesser.
