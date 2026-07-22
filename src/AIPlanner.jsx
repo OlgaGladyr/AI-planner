@@ -13,6 +13,7 @@ const COLOR = {
   tealInk: "#042a2f",     // dark-teal text on gradient/light-teal surfaces (Figma "on-additional2-container")
   success: "#26890d",     // completed-state green (Figma "additional1") — distinct from brand teal
   primary: "#007cb0",     // metadata/date-chip blue (Figma "primary") — distinct from the teal accent
+  error: "#da291c",       // swipe-to-delete button (Figma "error") — matches the design system exactly
   rose: "#f43f5e",
   ink: "#111827",
   sub: "#6b7280",
@@ -33,6 +34,7 @@ const FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,Helvetica
 function startOfDay(d) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
 function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
 function pad2(n) { return String(n).padStart(2, "0"); }
+function nowHHMM() { const d = new Date(); return pad2(d.getHours()) + ":" + pad2(d.getMinutes()); }
 function toDateInput(d) { return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate()); }
 function dateInputToOffset(dateStr, today) {
   const d = new Date(dateStr + "T00:00:00");
@@ -223,17 +225,23 @@ const MOCK_PHRASES = [
 
 /* -------------------------------- TaskRow --------------------------------- */
 
-function TaskRow({ task, today, allowDayPicker, justMoved, metaVariant = "default", onSave, onDiscard, onToggleDone }) {
+function TaskRow({ task, today, justMoved, metaVariant = "default", onSave, onDiscard, onToggleDone }) {
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(task.text);
-  const [time, setTime] = useState(task.time || "");
-  const [duration, setDuration] = useState(task.duration ? String(task.duration) : "");
+  const [time, setTime] = useState(task.time || nowHHMM());
   const [date, setDate] = useState(offsetToDateInput(task.dayOffset ?? 0, today));
+  const [dragX, setDragX] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const dragStartXRef = useRef(0);
+  const dragStartOffsetRef = useRef(0);
+  const draggingRef = useRef(false);
+  const movedRef = useRef(false);
+  const REVEAL_WIDTH = 60; // 48px delete button + 12px gap, matching the Figma "Delete swipe right" spec
+  const OPEN_THRESHOLD = 24;
 
   const openEdit = () => {
     setText(task.text);
-    setTime(task.time || "");
-    setDuration(task.duration ? String(task.duration) : "");
+    setTime(task.time || nowHHMM());
     setDate(offsetToDateInput(task.dayOffset ?? 0, today));
     setEditing(true);
   };
@@ -243,71 +251,120 @@ function TaskRow({ task, today, allowDayPicker, justMoved, metaVariant = "defaul
       ...task,
       text: text.trim() || task.text,
       time: time || null,
-      duration: duration ? Number(duration) : null,
-      dayOffset: allowDayPicker ? dateInputToOffset(date, today) : task.dayOffset,
+      dayOffset: dateInputToOffset(date, today),
     });
     setEditing(false);
   };
 
+  const onCardPointerDown = (e) => {
+    draggingRef.current = true;
+    movedRef.current = false;
+    dragStartXRef.current = e.clientX;
+    dragStartOffsetRef.current = dragX;
+    setDragging(true);
+  };
+  const onCardPointerMove = (e) => {
+    if (!draggingRef.current) return;
+    const delta = e.clientX - dragStartXRef.current;
+    if (Math.abs(delta) > 4) movedRef.current = true;
+    const next = Math.max(-REVEAL_WIDTH, Math.min(0, dragStartOffsetRef.current + delta));
+    setDragX(next);
+  };
+  const endDrag = () => {
+    if (!draggingRef.current) return;
+    draggingRef.current = false;
+    setDragging(false);
+    setDragX((x) => (x < -OPEN_THRESHOLD ? -REVEAL_WIDTH : 0));
+  };
+  const onCardClick = () => {
+    if (movedRef.current) { movedRef.current = false; return; } // just finished a swipe, not a tap
+    if (dragX !== 0) { setDragX(0); return; } // tap while revealed just closes it
+    openEdit();
+  };
+
   const done = task.status === "done";
   const skipped = task.status === "skipped";
-  const dayOffsetForChip = allowDayPicker ? dateInputToOffset(date, today) : (task.dayOffset ?? 0);
+  const dayOffsetForChip = dateInputToOffset(date, today);
   const dateChipLabel = offsetToLabel(dayOffsetForChip, today) || "Сьогодні";
 
   return (
     <>
-      <div
-        onClick={openEdit}
-        style={{
-          background: COLOR.card,
-          borderRadius: 20,
-          padding: "12px 14px",
-          boxShadow: "0 2px 4px rgba(0,36,51,.08)",
-          animation: justMoved ? "om-move-in .55s cubic-bezier(.2,.9,.3,1)" : "none",
-          opacity: skipped ? 0.6 : 1,
-          cursor: "pointer",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+      <div style={{ position: "relative", borderRadius: 20, overflow: "hidden" }}>
+        <div style={{ position: "absolute", top: 0, right: 0, bottom: 0, display: "flex", alignItems: "center" }}>
           <button
             type="button"
-            aria-label={done ? "Позначити як невиконане" : "Позначити як виконане"}
-            onClick={(e) => { e.stopPropagation(); onToggleDone(); }}
+            aria-label="Видалити план"
+            onClick={(e) => { e.stopPropagation(); onDiscard(); }}
             style={{
-              flex: "none", marginTop: 1, width: 20, height: 20, borderRadius: 7, cursor: "pointer",
-              border: done ? "none" : `1.5px solid ${COLOR.line}`,
-              background: done ? COLOR.success : "#fff",
-              display: "flex", alignItems: "center", justifyContent: "center", padding: 0,
+              width: 48, height: 48, borderRadius: "50%", border: "none", background: COLOR.error, color: "#fff",
+              display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flex: "none",
             }}
           >
-            {done && (
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M5 13l4 4L19 7" />
-              </svg>
-            )}
+            <Trash2 size={20} />
           </button>
-
-          <span
-            style={{
-              flex: 1, fontSize: 14, lineHeight: 1.4, color: done ? COLOR.faint : COLOR.ink,
-              textDecoration: done ? "line-through" : "none",
-            }}
-          >
-            {task.text}
-          </span>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, paddingLeft: 30 }}>
-          {metaVariant === "chip" ? (
-            <span style={{ fontSize: 12, fontWeight: 600, color: COLOR.primary }}>
-              📅 {offsetToLabel(task.dayOffset, today) || "Сьогодні"}{task.time ? `, ${formatTimeShort(task.time)}` : ""}
+        <div
+          onPointerDown={onCardPointerDown}
+          onPointerMove={onCardPointerMove}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
+          onClick={onCardClick}
+          style={{
+            background: COLOR.card,
+            borderRadius: 20,
+            padding: "12px 14px",
+            boxShadow: "0 2px 4px rgba(0,36,51,.08)",
+            animation: justMoved ? "om-move-in .55s cubic-bezier(.2,.9,.3,1)" : "none",
+            opacity: skipped ? 0.6 : 1,
+            cursor: "pointer",
+            position: "relative",
+            transform: `translateX(${dragX}px)`,
+            transition: dragging ? "none" : "transform .2s ease",
+            touchAction: "pan-y",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+            <button
+              type="button"
+              aria-label={done ? "Позначити як невиконане" : "Позначити як виконане"}
+              onClick={(e) => { e.stopPropagation(); onToggleDone(); }}
+              style={{
+                flex: "none", marginTop: 1, width: 20, height: 20, borderRadius: 7, cursor: "pointer",
+                border: done ? "none" : `1.5px solid ${COLOR.line}`,
+                background: done ? COLOR.success : "#fff",
+                display: "flex", alignItems: "center", justifyContent: "center", padding: 0,
+              }}
+            >
+              {done && (
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M5 13l4 4L19 7" />
+                </svg>
+              )}
+            </button>
+
+            <span
+              style={{
+                flex: 1, fontSize: 14, lineHeight: 1.4, color: done ? COLOR.faint : COLOR.ink,
+                textDecoration: done ? "line-through" : "none",
+              }}
+            >
+              {task.text}
             </span>
-          ) : (
-            <>
-              {task.time && <span style={{ fontSize: 11, color: COLOR.sub }}>{formatTimeShort(task.time)}{task.duration ? " – " + formatTimeShort(shiftTime(task.time, task.duration)) : ""}</span>}
-              {skipped && <span style={{ fontSize: 11, fontWeight: 700, color: COLOR.faint }}>Пропущено</span>}
-            </>
-          )}
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, paddingLeft: 30 }}>
+            {metaVariant === "chip" ? (
+              <span style={{ fontSize: 12, fontWeight: 600, color: COLOR.primary }}>
+                📅 {offsetToLabel(task.dayOffset, today) || "Сьогодні"}{task.time ? `, ${formatTimeShort(task.time)}` : ""}
+              </span>
+            ) : (
+              <>
+                {task.time && <span style={{ fontSize: 11, color: COLOR.sub }}>{formatTimeShort(task.time)}{task.duration ? " – " + formatTimeShort(shiftTime(task.time, task.duration)) : ""}</span>}
+                {skipped && <span style={{ fontSize: 11, fontWeight: 700, color: COLOR.faint }}>Пропущено</span>}
+              </>
+            )}
+          </div>
         </div>
       </div>
 
@@ -343,33 +400,19 @@ function TaskRow({ task, today, allowDayPicker, justMoved, metaVariant = "defaul
               />
 
               <div style={{ display: "flex", gap: 8 }}>
-                {allowDayPicker && (
-                  <div style={{ position: "relative", flex: 1 }}>
-                    <div style={chipStyle}>📅 <span>{dateChipLabel}</span></div>
-                    <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={overlayInputStyle} />
-                  </div>
-                )}
                 <div style={{ position: "relative", flex: 1 }}>
-                  <div style={chipStyle}>🕐 <span>{time ? formatTimeShort(time) : "Час"}</span></div>
-                  <input type="time" value={time} onChange={(e) => setTime(e.target.value)} style={overlayInputStyle} />
+                  <div style={chipStyle}>📅 <span>{dateChipLabel}</span></div>
+                  <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={overlayInputStyle} />
                 </div>
                 <div style={{ position: "relative", flex: 1 }}>
-                  <div style={chipStyle}>⏱ <span>{duration ? duration + " хв" : "Тривалість"}</span></div>
-                  <select value={duration} onChange={(e) => setDuration(e.target.value)} style={overlayInputStyle}>
-                    <option value="">Немає</option>
-                    <option value="15">15 хв</option>
-                    <option value="30">30 хв</option>
-                    <option value="45">45 хв</option>
-                    <option value="60">1 год</option>
-                    <option value="90">1.5 год</option>
-                    <option value="120">2 год</option>
-                  </select>
+                  <div style={chipStyle}>🕐 <span>{formatTimeShort(time)}</span></div>
+                  <input type="time" value={time} onChange={(e) => setTime(e.target.value)} style={overlayInputStyle} />
                 </div>
               </div>
 
-              <div style={{ display: "flex", gap: 8, paddingTop: 8, borderTop: `1px solid ${COLOR.line}` }}>
-                <button type="button" onClick={() => { setEditing(false); onDiscard(); }} aria-label="Видалити" style={smallGhostBtn}>
-                  <Trash2 size={14} /> Видалити
+              <div style={{ display: "flex", justifyContent: "center", paddingTop: 8, borderTop: `1px solid ${COLOR.line}` }}>
+                <button type="button" onClick={() => { setEditing(false); onDiscard(); }} aria-label="Видалити план" style={{ display: "flex", alignItems: "center", gap: 6, border: "none", background: "none", color: COLOR.error, fontSize: 14, fontWeight: 600, cursor: "pointer", padding: "8px 12px" }}>
+                  <Trash2 size={16} /> Видалити план
                 </button>
               </div>
             </div>
@@ -893,7 +936,7 @@ export default function AIPlanner() {
                         <SectionLabel>Заплановані {todayPlanned.length}</SectionLabel>
                         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                           {todayPlanned.map((t) => (
-                            <TaskRow key={t.id} task={t} today={today} allowDayPicker={false} metaVariant="chip" justMoved={t.id === justMovedId}
+                            <TaskRow key={t.id} task={t} today={today} metaVariant="chip" justMoved={t.id === justMovedId}
                               onSave={saveTask} onDiscard={() => discardTask(t.id)} onToggleDone={() => toggleDoneTask(t.id)} />
                           ))}
                         </div>
@@ -905,7 +948,7 @@ export default function AIPlanner() {
                         <SectionLabel>Виконані {todayDone.length}</SectionLabel>
                         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                           {todayDone.map((t) => (
-                            <TaskRow key={t.id} task={t} today={today} allowDayPicker={false} metaVariant="chip" justMoved={t.id === justMovedId}
+                            <TaskRow key={t.id} task={t} today={today} metaVariant="chip" justMoved={t.id === justMovedId}
                               onSave={saveTask} onDiscard={() => discardTask(t.id)} onToggleDone={() => toggleDoneTask(t.id)} />
                           ))}
                         </div>
@@ -948,7 +991,7 @@ export default function AIPlanner() {
                     <SectionLabel>Потребує дати ({unscheduledTasks.length})</SectionLabel>
                     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                       {unscheduledTasks.map((t) => (
-                        <TaskRow key={t.id} task={t} today={today} allowDayPicker onSave={saveTask} onDiscard={() => discardTask(t.id)} onToggleDone={() => toggleDoneTask(t.id)} />
+                        <TaskRow key={t.id} task={t} today={today} onSave={saveTask} onDiscard={() => discardTask(t.id)} onToggleDone={() => toggleDoneTask(t.id)} />
                       ))}
                     </div>
                   </div>
@@ -960,7 +1003,7 @@ export default function AIPlanner() {
                       <SectionLabel>{grp.label}</SectionLabel>
                       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                         {grp.rows.map((t) => (
-                          <TaskRow key={t.id} task={t} today={today} allowDayPicker={false} justMoved={t.id === justMovedId}
+                          <TaskRow key={t.id} task={t} today={today} justMoved={t.id === justMovedId}
                             onSave={saveTask} onDiscard={() => discardTask(t.id)} onToggleDone={() => toggleDoneTask(t.id)} />
                         ))}
                       </div>
@@ -970,7 +1013,7 @@ export default function AIPlanner() {
                   selectedDayRows.length > 0 ? (
                     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                       {selectedDayRows.map((t) => (
-                        <TaskRow key={t.id} task={t} today={today} allowDayPicker={false} justMoved={t.id === justMovedId}
+                        <TaskRow key={t.id} task={t} today={today} justMoved={t.id === justMovedId}
                           onSave={saveTask} onDiscard={() => discardTask(t.id)} onToggleDone={() => toggleDoneTask(t.id)} />
                       ))}
                     </div>
