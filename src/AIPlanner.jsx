@@ -19,7 +19,7 @@ const COLOR = {
   sub: "#6b7280",
   faint: "#9ca3af",
   line: "#e5e7eb",
-  panel: "#f9fafb",
+  panel: "#f4f5f5",       // Figma "surface-3" — bottom-sheet / screen background
   card: "#ffffff",
   navBg: "#0b0d0e",        // dark bottom-nav background (Figma "inverse-surface")
   navActive: "#f1f3f4",    // active nav icon/label (Figma "inverse-on-surface")
@@ -1183,10 +1183,12 @@ export default function AIPlanner() {
                 );
               })}
             </nav>
-            <button type="button" aria-label="Новий план" onClick={openBraindump}
-              style={{ position: "fixed", left: "50%", transform: "translateX(-50%)", bottom: 42, width: 56, height: 56, borderRadius: "50%", background: `linear-gradient(135deg, ${COLOR.tealLight}, ${COLOR.teal})`, color: "#fff", border: "none", boxShadow: "0 8px 20px rgba(13,148,136,.4)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", zIndex: 6, padding: 0 }}>
-              <Plus size={22} />
-            </button>
+            <div style={{ position: "fixed", left: "50%", transform: "translateX(-50%)", bottom: 84, width: "100%", maxWidth: 430, pointerEvents: "none", zIndex: 6 }}>
+              <button type="button" aria-label="Новий план" onClick={openBraindump}
+                style={{ position: "absolute", right: 16, bottom: 0, width: 56, height: 56, borderRadius: "50%", background: `linear-gradient(135deg, ${COLOR.tealLight}, ${COLOR.teal})`, color: "#fff", border: "none", boxShadow: "0 8px 20px rgba(13,148,136,.4)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", pointerEvents: "auto", padding: 0 }}>
+                <Plus size={22} />
+              </button>
+            </div>
           </>
         )}
 
