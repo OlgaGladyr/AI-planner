@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import {
-  CheckSquare, Calendar, Inbox as InboxIcon, MoreHorizontal, Plus, X, Mic, Send, Square,
-  Search, Pencil, Trash2, ChevronRight, Mail, FileText, Bell, Shield, Palette, LogOut,
+  Calendar, Home, Settings, Plus, X, Mic, Send, Square,
+  Pencil, Trash2, Mail, FileText, Bell, Shield, Palette, LogOut,
 } from "lucide-react";
 
 /* ----------------------------- design tokens ----------------------------- */
@@ -223,7 +223,7 @@ const MOCK_PHRASES = [
 
 /* -------------------------------- TaskRow --------------------------------- */
 
-function TaskRow({ task, today, allowDayPicker, overdue, justMoved, metaVariant = "default", onSave, onDiscard, onToggleDone }) {
+function TaskRow({ task, today, allowDayPicker, justMoved, metaVariant = "default", onSave, onDiscard, onToggleDone }) {
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(task.text);
   const [time, setTime] = useState(task.time || "");
@@ -263,7 +263,6 @@ function TaskRow({ task, today, allowDayPicker, overdue, justMoved, metaVariant 
           borderRadius: 20,
           padding: "12px 14px",
           boxShadow: "0 2px 4px rgba(0,36,51,.08)",
-          borderLeft: overdue ? `3px solid ${COLOR.rose}` : "none",
           animation: justMoved ? "om-move-in .55s cubic-bezier(.2,.9,.3,1)" : "none",
           opacity: skipped ? 0.6 : 1,
           cursor: "pointer",
@@ -518,9 +517,7 @@ export default function AIPlanner() {
   const [lastTab, setLastTab] = useState("today");
   const [tasks, setTasks] = useState(() => loadSavedTasks() || seedTasks());
 
-  const [upcomingDay, setUpcomingDay] = useState(null); // null = "all" grouped view
-  const [inboxSearch, setInboxSearch] = useState("");
-  const [showInboxSearch, setShowInboxSearch] = useState(false);
+  const [upcomingDay, setUpcomingDay] = useState(0); // 0 = today selected by default; null = "all" grouped view
 
   const [capturedThoughts, setCapturedThoughts] = useState([]);
   const [textDraft, setTextDraft] = useState("");
@@ -835,24 +832,16 @@ export default function AIPlanner() {
   const todayPlanned = sortRows(todayTasks.filter((t) => t.status !== "done"));
   const todayDone = sortRows(todayTasks.filter((t) => t.status === "done"));
 
-  const overdueTasks = tasks.filter((t) => t.status === "pending" && t.dayOffset !== null && t.dayOffset < 0);
-
-  const upcomingTasks = tasks.filter((t) => t.dayOffset !== null && t.dayOffset > 0);
-  const upcomingGroups = useMemo(() => {
-    const by = {};
-    upcomingTasks.forEach((t) => { (by[t.dayOffset] = by[t.dayOffset] || []).push(t); });
-    return Object.keys(by).map(Number).sort((a, b) => a - b).map((offset) => ({ offset, label: offsetToLabel(offset, today), rows: sortRows(by[offset]) }));
-  }, [tasks]); // eslint-disable-line
-
   const weekDays = useMemo(() => {
     const dow = today.getDay(); // 0=Sun
     const mondayOffset = -(((dow + 6) % 7));
     return Array.from({ length: 7 }, (_, i) => {
       const offset = mondayOffset + i;
       const d = addDays(today, offset);
+      const wd = d.toLocaleDateString("uk-UA", { weekday: "short" });
       return {
         offset, isToday: offset === 0, isPast: offset < 0,
-        weekday: d.toLocaleDateString("uk-UA", { weekday: "short" }), dayNum: d.getDate(),
+        weekday: wd.charAt(0).toUpperCase() + wd.slice(1), dayNum: d.getDate(),
         hasTasks: tasks.some((t) => t.dayOffset === offset && t.dayOffset !== null),
       };
     });
@@ -860,7 +849,7 @@ export default function AIPlanner() {
 
   const selectedDayRows = upcomingDay === null ? [] : sortRows(tasks.filter((t) => t.dayOffset === upcomingDay));
 
-  const allScheduled = tasks.filter((t) => t.dayOffset !== null && t.dayOffset >= 0);
+  const allScheduled = tasks.filter((t) => t.dayOffset !== null);
   const allGroups = useMemo(() => {
     const by = {};
     allScheduled.forEach((t) => { (by[t.dayOffset] = by[t.dayOffset] || []).push(t); });
@@ -868,12 +857,6 @@ export default function AIPlanner() {
   }, [tasks]); // eslint-disable-line
 
   const unscheduledTasks = tasks.filter((t) => t.dayOffset === null);
-
-  const q = inboxSearch.trim().toLowerCase();
-  const matchesQ = (t) => !q || t.text.toLowerCase().includes(q);
-  const inboxOverdue = overdueTasks.filter(matchesQ);
-  const inboxGroups = allGroups.map((g) => ({ ...g, rows: g.rows.filter((r) => matchesQ(r)) })).filter((g) => g.rows.length);
-  const inboxUnscheduled = unscheduledTasks.filter(matchesQ);
 
   const activeTab = screen === "braindump" ? lastTab : screen;
   const tabColor = (tab) => (activeTab === tab ? COLOR.navActive : COLOR.navInactive);
@@ -930,123 +913,70 @@ export default function AIPlanner() {
                     )}
                   </>
                 ) : <EmptyState>Поки що нічого не заплановано. Натисніть +, щоб озвучити свій день.</EmptyState>}
+              </div>
+            </div>
+          )}
 
-                {overdueTasks.length > 0 && (
-                  <div style={{ marginTop: 24 }}>
-                    <SectionLabel>Прострочені плани ({overdueTasks.length})</SectionLabel>
+          {/* ---------------- CALENDAR ---------------- */}
+          {screen === "calendar" && (
+            <div style={{ background: COLOR.panel }}>
+              <div style={{ background: `linear-gradient(160deg, ${COLOR.teal} 0%, ${COLOR.tealDark} 100%)`, padding: "28px 16px 20px 16px" }}>
+                <h1 style={{ fontSize: 28, fontWeight: 800, margin: "0 0 16px", color: "#fff" }}>Календар</h1>
+                <div className="om-hide-scrollbar" style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4 }}>
+                  {weekDays.map((d) => {
+                    const sel = upcomingDay === d.offset;
+                    return (
+                      <button key={d.offset} type="button"
+                        onClick={() => setUpcomingDay((cur) => (cur === d.offset ? null : d.offset))}
+                        style={{
+                          flex: "none", width: 48, height: 72, borderRadius: 999, cursor: "pointer", border: "none",
+                          background: sel ? COLOR.tealInk : "#fff", color: sel ? "#b9f2f8" : COLOR.tealInk,
+                          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4,
+                        }}>
+                        <span style={{ fontSize: 12, fontWeight: 600 }}>{d.weekday}</span>
+                        <span style={{ fontSize: 16, fontWeight: 600 }}>{d.dayNum}</span>
+                        {d.hasTasks && <span style={{ width: 4, height: 4, borderRadius: "50%", background: sel ? "#b9f2f8" : COLOR.teal }} />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div style={{ background: COLOR.panel, borderTopLeftRadius: 24, borderTopRightRadius: 24, marginTop: -16, position: "relative", padding: "20px 16px 20px 16px" }}>
+                {upcomingDay === null && unscheduledTasks.length > 0 && (
+                  <div style={{ marginBottom: 24 }}>
+                    <SectionLabel>Потребує дати ({unscheduledTasks.length})</SectionLabel>
                     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                      {overdueTasks.map((t) => (
-                        <TaskRow key={t.id} task={t} today={today} allowDayPicker overdue
-                          onSave={saveTask} onDiscard={() => discardTask(t.id)} onToggleDone={() => toggleDoneTask(t.id)} />
+                      {unscheduledTasks.map((t) => (
+                        <TaskRow key={t.id} task={t} today={today} allowDayPicker onSave={saveTask} onDiscard={() => discardTask(t.id)} onToggleDone={() => toggleDoneTask(t.id)} />
                       ))}
                     </div>
                   </div>
                 )}
-              </div>
-            </div>
-          )}
 
-          {/* ---------------- UPCOMING ---------------- */}
-          {screen === "upcoming" && (
-            <div style={{ padding: "28px 16px 20px 16px", background: COLOR.panel }}>
-              <h1 style={{ fontSize: 26, fontWeight: 800, margin: "0 0 18px", color: COLOR.ink }}>Найближчі</h1>
-
-              <div className="om-hide-scrollbar" style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 8, marginBottom: 18 }}>
-                {weekDays.map((d) => {
-                  const sel = upcomingDay === d.offset;
-                  return (
-                    <button key={d.offset} type="button" disabled={d.isPast}
-                      onClick={() => setUpcomingDay((cur) => (cur === d.offset ? null : d.offset))}
-                      style={{
-                        flex: "none", width: 48, padding: "8px 4px", borderRadius: 14, cursor: d.isPast ? "not-allowed" : "pointer",
-                        border: sel ? `1px solid ${COLOR.teal}` : (d.isToday ? `1.5px solid ${COLOR.teal}` : `1px solid ${COLOR.line}`),
-                        background: sel ? COLOR.teal : "transparent", color: sel ? "#fff" : (d.isPast ? "#d1d5db" : COLOR.ink),
-                        opacity: d.isPast ? 0.5 : 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
-                      }}>
-                      <span style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", opacity: 0.7 }}>{d.isToday ? "Сьогодні" : d.weekday}</span>
-                      <span style={{ fontSize: 15, fontWeight: 700 }}>{d.dayNum}</span>
-                      {d.hasTasks && <span style={{ width: 4, height: 4, borderRadius: "50%", background: sel ? "#fff" : COLOR.teal }} />}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {upcomingDay === null ? (
-                upcomingGroups.length > 0 ? upcomingGroups.map((grp) => (
-                  <div key={grp.offset} style={{ marginBottom: 24 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10, color: COLOR.ink }}>{grp.label}</div>
+                {upcomingDay === null ? (
+                  allGroups.length > 0 ? allGroups.map((grp) => (
+                    <div key={grp.offset} style={{ marginBottom: 24 }}>
+                      <SectionLabel>{grp.label}</SectionLabel>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                        {grp.rows.map((t) => (
+                          <TaskRow key={t.id} task={t} today={today} allowDayPicker={false} justMoved={t.id === justMovedId}
+                            onSave={saveTask} onDiscard={() => discardTask(t.id)} onToggleDone={() => toggleDoneTask(t.id)} />
+                        ))}
+                      </div>
+                    </div>
+                  )) : (unscheduledTasks.length === 0 && <EmptyState>Тут поки що порожньо.</EmptyState>)
+                ) : (
+                  selectedDayRows.length > 0 ? (
                     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                      {grp.rows.map((t) => (
+                      {selectedDayRows.map((t) => (
                         <TaskRow key={t.id} task={t} today={today} allowDayPicker={false} justMoved={t.id === justMovedId}
                           onSave={saveTask} onDiscard={() => discardTask(t.id)} onToggleDone={() => toggleDoneTask(t.id)} />
                       ))}
                     </div>
-                  </div>
-                )) : <EmptyState>Поки немає найближчих планів.</EmptyState>
-              ) : (
-                selectedDayRows.length > 0 ? (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                    {selectedDayRows.map((t) => (
-                      <TaskRow key={t.id} task={t} today={today} allowDayPicker={false} justMoved={t.id === justMovedId}
-                        onSave={saveTask} onDiscard={() => discardTask(t.id)} onToggleDone={() => toggleDoneTask(t.id)} />
-                    ))}
-                  </div>
-                ) : <EmptyState>На цей день нічого не заплановано.</EmptyState>
-              )}
-            </div>
-          )}
-
-          {/* ---------------- INBOX ---------------- */}
-          {screen === "inbox" && (
-            <div style={{ padding: "28px 16px 20px 16px", background: COLOR.panel }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
-                <h1 style={{ fontSize: 26, fontWeight: 800, margin: 0, color: COLOR.ink }}>Вхідні</h1>
-                <button type="button" aria-label="Пошук" onClick={() => setShowInboxSearch((s) => !s)} style={{ border: "none", background: "none", color: COLOR.sub, cursor: "pointer", padding: 6, borderRadius: 10 }}>
-                  <Search size={18} />
-                </button>
+                  ) : <EmptyState>На цей день нічого не заплановано.</EmptyState>
+                )}
               </div>
-
-              {showInboxSearch && (
-                <div style={{ position: "relative", marginBottom: 20 }}>
-                  <Search size={15} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: COLOR.faint }} />
-                  <input value={inboxSearch} onChange={(e) => setInboxSearch(e.target.value)} placeholder="Пошук серед планів" autoFocus
-                    style={{ width: "100%", padding: "10px 14px 10px 38px", fontSize: 13, border: `1px solid ${COLOR.line}`, borderRadius: 12, boxSizing: "border-box" }} />
-                </div>
-              )}
-
-              {inboxOverdue.length > 0 && (
-                <div style={{ marginBottom: 24 }}>
-                  <SectionLabel>Прострочені плани ({inboxOverdue.length})</SectionLabel>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                    {inboxOverdue.map((t) => (
-                      <TaskRow key={t.id} task={t} today={today} allowDayPicker overdue onSave={saveTask} onDiscard={() => discardTask(t.id)} onToggleDone={() => toggleDoneTask(t.id)} />
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {inboxUnscheduled.length > 0 && (
-                <div style={{ marginBottom: 24 }}>
-                  <SectionLabel>Потребує дати ({inboxUnscheduled.length})</SectionLabel>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                    {inboxUnscheduled.map((t) => (
-                      <TaskRow key={t.id} task={t} today={today} allowDayPicker onSave={saveTask} onDiscard={() => discardTask(t.id)} onToggleDone={() => toggleDoneTask(t.id)} />
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {inboxGroups.length > 0 ? inboxGroups.map((grp) => (
-                <div key={grp.offset} style={{ marginBottom: 24 }}>
-                  <SectionLabel>{grp.label}</SectionLabel>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                    {grp.rows.map((t) => (
-                      <TaskRow key={t.id} task={t} today={today} allowDayPicker={false} justMoved={t.id === justMovedId}
-                        onSave={saveTask} onDiscard={() => discardTask(t.id)} onToggleDone={() => toggleDoneTask(t.id)} />
-                    ))}
-                  </div>
-                </div>
-              )) : (inboxOverdue.length === 0 && inboxUnscheduled.length === 0 && <EmptyState>{q ? "Немає планів, що відповідають пошуку." : "Тут поки що порожньо."}</EmptyState>)}
             </div>
           )}
 
@@ -1059,6 +989,7 @@ export default function AIPlanner() {
               </div>
               <div style={{ fontSize: 22, fontWeight: 800, color: COLOR.ink }}>Алекс Рівера</div>
               <div style={{ fontSize: 14, color: COLOR.sub, marginBottom: 28 }}>США — Сан-Франциско</div>
+
 
               <div style={{ display: "flex", flexDirection: "column", gap: 14, textAlign: "left" }}>
                 <button type="button" onClick={() => showToast("Дякуємо — відгук збережено.")} style={moreBtn}><Mail size={20} /> Залишити відгук</button>
@@ -1150,10 +1081,9 @@ export default function AIPlanner() {
           <>
             <nav style={{ position: "fixed", left: "50%", transform: "translateX(-50%)", bottom: 0, width: "100%", maxWidth: 430, background: COLOR.navBg, display: "flex", alignItems: "stretch", height: 64, zIndex: 5 }}>
               {[
-                { tab: "today", icon: <Calendar size={20} />, label: "Сьогодні", go: () => goTab("today") },
-                { tab: "upcoming", icon: <ChevronRight size={20} style={{ transform: "rotate(0deg)" }} />, label: "Найближчі", go: () => goTab("upcoming") },
-                { tab: "inbox", icon: <InboxIcon size={20} />, label: "Вхідні", go: () => goTab("inbox") },
-                { tab: "more", icon: <MoreHorizontal size={20} />, label: "Ще", go: () => goTab("more") },
+                { tab: "today", icon: <Home size={20} />, label: "Сьогодні", go: () => goTab("today") },
+                { tab: "calendar", icon: <Calendar size={20} />, label: "Календар", go: () => goTab("calendar") },
+                { tab: "more", icon: <Settings size={20} />, label: "Інше", go: () => goTab("more") },
               ].map((item) => {
                 const active = activeTab === item.tab;
                 return (
