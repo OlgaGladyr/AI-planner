@@ -236,19 +236,8 @@ function TaskRow({ task, today, justMoved, metaVariant = "default", onSave, onDi
   const dragStartOffsetRef = useRef(0);
   const draggingRef = useRef(false);
   const movedRef = useRef(false);
-  const dateInputRef = useRef(null);
-  const timeInputRef = useRef(null);
   const REVEAL_WIDTH = 60; // 48px delete button + 12px gap, matching the Figma "Delete swipe right" spec
   const OPEN_THRESHOLD = 24;
-
-  const openPicker = (ref) => {
-    const el = ref.current;
-    if (!el) return;
-    if (typeof el.showPicker === "function") {
-      try { el.showPicker(); return; } catch { /* fall through to focus */ }
-    }
-    el.focus();
-  };
 
   const openEdit = () => {
     setText(task.text);
@@ -295,8 +284,6 @@ function TaskRow({ task, today, justMoved, metaVariant = "default", onSave, onDi
 
   const done = task.status === "done";
   const skipped = task.status === "skipped";
-  const dayOffsetForChip = dateInputToOffset(date, today);
-  const dateChipLabel = offsetToLabel(dayOffsetForChip, today) || "Сьогодні";
 
   return (
     <>
@@ -411,19 +398,13 @@ function TaskRow({ task, today, justMoved, metaVariant = "default", onSave, onDi
               />
 
               <div style={{ display: "flex", gap: 8 }}>
-                <div style={{ position: "relative", flex: 1 }}>
-                  <button type="button" onClick={() => openPicker(dateInputRef)} style={chipStyle}>📅 <span>{dateChipLabel}</span></button>
-                  <input
-                    ref={dateInputRef} type="date" value={date} onChange={(e) => setDate(e.target.value)}
-                    style={{ position: "absolute", left: "50%", bottom: 0, width: 1, height: 1, opacity: 0, border: "none", padding: 0 }}
-                  />
+                <div style={{ flex: 1 }}>
+                  <label style={labelStyle}>Дата</label>
+                  <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={pickerInputStyle} />
                 </div>
-                <div style={{ position: "relative", flex: 1 }}>
-                  <button type="button" onClick={() => openPicker(timeInputRef)} style={chipStyle}>🕐 <span>{formatTimeShort(time)}</span></button>
-                  <input
-                    ref={timeInputRef} type="time" value={time} onChange={(e) => setTime(e.target.value)}
-                    style={{ position: "absolute", left: "50%", bottom: 0, width: 1, height: 1, opacity: 0, border: "none", padding: 0 }}
-                  />
+                <div style={{ flex: 1 }}>
+                  <label style={labelStyle}>Час</label>
+                  <input type="time" value={time} onChange={(e) => setTime(e.target.value)} style={pickerInputStyle} />
                 </div>
               </div>
 
@@ -440,7 +421,7 @@ function TaskRow({ task, today, justMoved, metaVariant = "default", onSave, onDi
   );
 }
 
-const chipStyle = { display: "flex", alignItems: "center", justifyContent: "center", gap: 6, border: `1px solid ${COLOR.line}`, borderRadius: 999, padding: "8px 10px", fontSize: 13, fontWeight: 600, color: COLOR.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", background: "#fff", cursor: "pointer", width: "100%" };
+const pickerInputStyle = { width: "100%", fontSize: 13, fontWeight: 600, border: `1px solid ${COLOR.line}`, borderRadius: 12, padding: "10px 12px", boxSizing: "border-box", color: COLOR.ink, background: "#fff", fontFamily: "inherit" };
 
 
 const labelStyle = { fontSize: 12, fontWeight: 600, color: COLOR.sub, display: "block", marginBottom: 4 };
