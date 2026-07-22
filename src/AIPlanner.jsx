@@ -309,7 +309,7 @@ function TaskRow({ task, today, justMoved, metaVariant = "default", onSave, onDi
           onPointerCancel={endDrag}
           onClick={onCardClick}
           style={{
-            background: COLOR.card,
+            background: dragX !== 0 ? COLOR.panel : COLOR.card,
             borderRadius: 20,
             padding: "12px 14px",
             boxShadow: "0 2px 4px rgba(0,36,51,.08)",
@@ -318,7 +318,7 @@ function TaskRow({ task, today, justMoved, metaVariant = "default", onSave, onDi
             cursor: "pointer",
             position: "relative",
             transform: `translateX(${dragX}px)`,
-            transition: dragging ? "none" : "transform .2s ease",
+            transition: dragging ? "none" : "background .15s ease, transform .2s ease",
             touchAction: "pan-y",
           }}
         >
