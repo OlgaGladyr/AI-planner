@@ -577,6 +577,8 @@ export default function AIPlanner() {
   const [justMovedId, setJustMovedId] = useState(null);
 
   const undoRef = useRef(null);
+  const taskUndoRef = useRef(null);
+  const taskUndoTimeout = useRef(null);
   const recIntervalRef = useRef(null);
   const recBaseRef = useRef("");
   const recognitionRef = useRef(null);
@@ -650,7 +652,24 @@ export default function AIPlanner() {
       return prev.map((t) => (t.id === updated.id ? updated : t));
     });
   };
-  const discardTask = (id) => setTasks((prev) => prev.filter((t) => t.id !== id));
+  const discardTask = (id) => {
+    setTasks((prev) => {
+      const idx = prev.findIndex((t) => t.id === id);
+      if (idx === -1) return prev;
+      taskUndoRef.current = { task: prev[idx], index: idx };
+      clearTimeout(taskUndoTimeout.current);
+      taskUndoTimeout.current = setTimeout(() => { taskUndoRef.current = null; }, 5000);
+      return prev.filter((t) => t.id !== id);
+    });
+    showToast("План видалено", 5000, undoDiscardTask, "Скасувати");
+  };
+  const undoDiscardTask = () => {
+    if (!taskUndoRef.current) return;
+    const { task, index } = taskUndoRef.current;
+    setTasks((prev) => { const list = [...prev]; list.splice(Math.min(index, list.length), 0, task); return list; });
+    taskUndoRef.current = null; clearTimeout(taskUndoTimeout.current);
+    setToast(null);
+  };
   const toggleDoneTask = (id) => {
     setTasks((prev) => prev.map((x) => (x.id === id ? { ...x, status: x.status === "done" ? "pending" : "done" } : x)));
   };
@@ -1162,9 +1181,9 @@ export default function AIPlanner() {
 
         {/* toast */}
         {toast && (
-          <div style={{ position: "fixed", left: "50%", bottom: 130, transform: "translateX(-50%)", background: "#111827", color: "#fff", padding: "10px 14px 10px 18px", borderRadius: 14, fontSize: 13, boxShadow: "0 8px 24px rgba(17,24,39,.3)", zIndex: 10, maxWidth: 340, textAlign: "center", animation: "om-fade-in .2s ease", display: "flex", alignItems: "center", gap: 12 }}>
-            <span>{toast}</span>
-            {toastAction && <button type="button" onClick={toastAction} style={{ background: "none", border: "none", color: "#5eead4", fontWeight: 700, fontSize: 13, cursor: "pointer", padding: "2px 4px", flex: "none" }}>{toastActionLabel}</button>}
+          <div style={{ position: "fixed", left: "50%", bottom: 112, transform: "translateX(-50%)", width: "calc(100% - 32px)", maxWidth: 398, background: COLOR.tealInk, color: "#fff", padding: "14px 16px", borderRadius: 12, fontSize: 14, boxShadow: "0 4px 4px rgba(0,0,0,.15), 0 1px 1.5px rgba(0,0,0,.3)", zIndex: 10, textAlign: "left", animation: "om-fade-in .2s ease", display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ flex: 1 }}>{toast}</span>
+            {toastAction && <button type="button" onClick={toastAction} style={{ background: "none", border: "none", color: "#b9f2f8", fontWeight: 600, fontSize: 14, cursor: "pointer", padding: "2px 4px", flex: "none" }}>{toastActionLabel}</button>}
           </div>
         )}
       </div>
