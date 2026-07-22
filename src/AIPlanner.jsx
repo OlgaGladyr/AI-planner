@@ -353,9 +353,11 @@ function TaskRow({ task, today, justMoved, metaVariant = "default", onSave, onDi
 
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, paddingLeft: 30 }}>
             {metaVariant === "chip" ? (
-              <span style={{ fontSize: 12, fontWeight: 600, color: COLOR.primary }}>
-                📅 {offsetToLabel(task.dayOffset, today) || "Сьогодні"}{task.time ? `, ${formatTimeShort(task.time)}` : ""}
-              </span>
+              task.dayOffset !== null && (
+                <span style={{ fontSize: 12, fontWeight: 600, color: task.dayOffset === 0 ? COLOR.primary : COLOR.success }}>
+                  📅 {offsetToLabel(task.dayOffset, today)}{task.time ? `, ${formatTimeShort(task.time)}` : ""}
+                </span>
+              )
             ) : (
               <>
                 {task.time && <span style={{ fontSize: 11, color: COLOR.sub }}>{formatTimeShort(task.time)}{task.duration ? " – " + formatTimeShort(shiftTime(task.time, task.duration)) : ""}</span>}
@@ -1015,7 +1017,7 @@ export default function AIPlanner() {
                     <SectionLabel>Потребує дати ({unscheduledTasks.length})</SectionLabel>
                     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                       {unscheduledTasks.map((t) => (
-                        <TaskRow key={t.id} task={t} today={today} onSave={saveTask} onDiscard={() => discardTask(t.id)} onToggleDone={() => toggleDoneTask(t.id)} />
+                        <TaskRow key={t.id} task={t} today={today} metaVariant="chip" onSave={saveTask} onDiscard={() => discardTask(t.id)} onToggleDone={() => toggleDoneTask(t.id)} />
                       ))}
                     </div>
                   </div>
@@ -1027,7 +1029,7 @@ export default function AIPlanner() {
                       <SectionLabel>{grp.label}</SectionLabel>
                       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                         {grp.rows.map((t) => (
-                          <TaskRow key={t.id} task={t} today={today} justMoved={t.id === justMovedId}
+                          <TaskRow key={t.id} task={t} today={today} metaVariant="chip" justMoved={t.id === justMovedId}
                             onSave={saveTask} onDiscard={() => discardTask(t.id)} onToggleDone={() => toggleDoneTask(t.id)} />
                         ))}
                       </div>
@@ -1041,7 +1043,7 @@ export default function AIPlanner() {
                           <SectionLabel>Заплановані {selectedDayPlanned.length}</SectionLabel>
                           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                             {selectedDayPlanned.map((t) => (
-                              <TaskRow key={t.id} task={t} today={today} justMoved={t.id === justMovedId}
+                              <TaskRow key={t.id} task={t} today={today} metaVariant="chip" justMoved={t.id === justMovedId}
                                 onSave={saveTask} onDiscard={() => discardTask(t.id)} onToggleDone={() => toggleDoneTask(t.id)} />
                             ))}
                           </div>
@@ -1052,7 +1054,7 @@ export default function AIPlanner() {
                           <SectionLabel>Виконані {selectedDayDone.length}</SectionLabel>
                           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                             {selectedDayDone.map((t) => (
-                              <TaskRow key={t.id} task={t} today={today} justMoved={t.id === justMovedId}
+                              <TaskRow key={t.id} task={t} today={today} metaVariant="chip" justMoved={t.id === justMovedId}
                                 onSave={saveTask} onDiscard={() => discardTask(t.id)} onToggleDone={() => toggleDoneTask(t.id)} />
                             ))}
                           </div>
