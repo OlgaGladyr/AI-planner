@@ -386,7 +386,9 @@ function TaskRow({ task, today, justMoved, metaVariant = "default", onSave, onDi
                 <X size={20} />
               </button>
               <span style={{ flex: 1, fontSize: 20, fontWeight: 600, color: COLOR.ink }}>Редагувати план</span>
-              <button type="button" onClick={save} style={{ border: "none", background: "none", color: COLOR.teal, fontSize: 14, fontWeight: 600, cursor: "pointer", padding: "10px 12px" }}>Зберегти</button>
+              <button type="button" onClick={() => { setEditing(false); onDiscard(); }} aria-label="Видалити план" style={{ border: "none", background: "none", color: COLOR.error, cursor: "pointer", width: 40, height: 40, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}>
+                <Trash2 size={20} />
+              </button>
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 20, padding: 16 }}>
@@ -409,8 +411,8 @@ function TaskRow({ task, today, justMoved, metaVariant = "default", onSave, onDi
               </div>
 
               <div style={{ display: "flex", justifyContent: "center", paddingTop: 8, borderTop: `1px solid ${COLOR.line}` }}>
-                <button type="button" onClick={() => { setEditing(false); onDiscard(); }} aria-label="Видалити план" style={{ display: "flex", alignItems: "center", gap: 6, border: "none", background: "none", color: COLOR.error, fontSize: 14, fontWeight: 600, cursor: "pointer", padding: "8px 12px" }}>
-                  <Trash2 size={16} /> Видалити план
+                <button type="button" onClick={save} style={{ width: "100%", border: "none", background: COLOR.teal, color: "#fff", fontSize: 15, fontWeight: 700, borderRadius: 14, padding: "13px 0", cursor: "pointer" }}>
+                  Зберегти
                 </button>
               </div>
             </div>
@@ -990,7 +992,9 @@ export default function AIPlanner() {
                       <button key={d.offset} type="button" disabled={d.isPast}
                         onClick={() => setUpcomingDay((cur) => (cur === d.offset ? null : d.offset))}
                         style={{
-                          flex: "none", width: 48, height: 72, borderRadius: 999, border: "none",
+                          flex: "none", width: 48, height: 72, borderRadius: 999,
+                          border: d.isToday ? "2px solid #fff" : "none",
+                          boxSizing: "border-box",
                           cursor: d.isPast ? "not-allowed" : "pointer",
                           background: sel ? COLOR.tealInk : "transparent",
                           color: sel ? "#b9f2f8" : "#fff",
