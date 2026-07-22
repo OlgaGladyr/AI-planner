@@ -907,6 +907,8 @@ export default function AIPlanner() {
   }, [tasks]); // eslint-disable-line
 
   const selectedDayRows = upcomingDay === null ? [] : sortRows(tasks.filter((t) => t.dayOffset === upcomingDay));
+  const selectedDayPlanned = sortRows(selectedDayRows.filter((t) => t.status !== "done"));
+  const selectedDayDone = sortRows(selectedDayRows.filter((t) => t.status === "done"));
 
   const allScheduled = tasks.filter((t) => t.dayOffset !== null);
   const allGroups = useMemo(() => {
@@ -985,16 +987,18 @@ export default function AIPlanner() {
                   {weekDays.map((d) => {
                     const sel = upcomingDay === d.offset;
                     return (
-                      <button key={d.offset} type="button"
+                      <button key={d.offset} type="button" disabled={d.isPast}
                         onClick={() => setUpcomingDay((cur) => (cur === d.offset ? null : d.offset))}
                         style={{
-                          flex: "none", width: 48, height: 72, borderRadius: 999, cursor: "pointer", border: "none",
-                          background: sel ? COLOR.tealInk : "#fff", color: sel ? "#b9f2f8" : COLOR.tealInk,
+                          flex: "none", width: 48, height: 72, borderRadius: 999, border: "none",
+                          cursor: d.isPast ? "not-allowed" : "pointer",
+                          background: sel ? COLOR.tealInk : "transparent",
+                          color: sel ? "#b9f2f8" : "#fff",
+                          opacity: d.isPast ? 0.4 : 1,
                           display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4,
                         }}>
                         <span style={{ fontSize: 12, fontWeight: 600 }}>{d.weekday}</span>
                         <span style={{ fontSize: 16, fontWeight: 600 }}>{d.dayNum}</span>
-                        {d.hasTasks && <span style={{ width: 4, height: 4, borderRadius: "50%", background: sel ? "#b9f2f8" : COLOR.teal }} />}
                       </button>
                     );
                   })}
@@ -1027,12 +1031,30 @@ export default function AIPlanner() {
                   )) : (unscheduledTasks.length === 0 && <EmptyState>Тут поки що порожньо.</EmptyState>)
                 ) : (
                   selectedDayRows.length > 0 ? (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                      {selectedDayRows.map((t) => (
-                        <TaskRow key={t.id} task={t} today={today} justMoved={t.id === justMovedId}
-                          onSave={saveTask} onDiscard={() => discardTask(t.id)} onToggleDone={() => toggleDoneTask(t.id)} />
-                      ))}
-                    </div>
+                    <>
+                      {selectedDayPlanned.length > 0 && (
+                        <div style={{ marginBottom: selectedDayDone.length > 0 ? 24 : 0 }}>
+                          <SectionLabel>Заплановані {selectedDayPlanned.length}</SectionLabel>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                            {selectedDayPlanned.map((t) => (
+                              <TaskRow key={t.id} task={t} today={today} justMoved={t.id === justMovedId}
+                                onSave={saveTask} onDiscard={() => discardTask(t.id)} onToggleDone={() => toggleDoneTask(t.id)} />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {selectedDayDone.length > 0 && (
+                        <div>
+                          <SectionLabel>Виконані {selectedDayDone.length}</SectionLabel>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                            {selectedDayDone.map((t) => (
+                              <TaskRow key={t.id} task={t} today={today} justMoved={t.id === justMovedId}
+                                onSave={saveTask} onDiscard={() => discardTask(t.id)} onToggleDone={() => toggleDoneTask(t.id)} />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
                   ) : <EmptyState>На цей день нічого не заплановано.</EmptyState>
                 )}
               </div>
