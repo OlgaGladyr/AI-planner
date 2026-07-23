@@ -447,13 +447,6 @@ function ThoughtCard({ thought, today, onChange, onRemove }) {
   const OPEN_THRESHOLD = 24;
 
   const eff = thought;
-  const timeParts = [];
-  if (eff.dayOffset !== 0 && eff.dayOffset !== null && eff.dayOffset !== undefined) {
-    const lbl = offsetToLabel(eff.dayOffset, today);
-    if (lbl) timeParts.push(lbl);
-  }
-  if (eff.time) timeParts.push(eff.duration ? formatTimeShort(eff.time) + " – " + formatTimeShort(shiftTime(eff.time, eff.duration)) : formatTimeShort(eff.time));
-  const timeLabel = timeParts.join(" · ");
 
   const openEdit = () => {
     if (thought.action === "delete") return; // nothing to edit for a removal — just accept or cancel it
@@ -541,9 +534,11 @@ function ThoughtCard({ thought, today, onChange, onRemove }) {
         >
           {thought.action === "update" && <ActionBadge />}
           <span style={{ display: "block", fontSize: 13, lineHeight: 1.4, color: COLOR.ink, marginTop: thought.action === "update" ? 4 : 0 }}>{thought.text}</span>
-          {timeLabel && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
-              <span style={{ fontSize: 11, color: COLOR.sub }}>{timeLabel}</span>
+          {eff.dayOffset !== null && eff.dayOffset !== undefined && (
+            <div style={{ marginTop: 6 }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: eff.dayOffset === 0 ? COLOR.primary : COLOR.success }}>
+                📅 {offsetToLabel(eff.dayOffset, today)}{eff.time ? `, ${formatTimeShort(eff.time)}` : ""}
+              </span>
             </div>
           )}
         </div>
