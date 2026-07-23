@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import {
   Calendar, Home, Settings, Plus, X, Mic, Send, Square,
-  Pencil, Trash2, Mail, FileText, Bell, Shield, Palette, LogOut,
+  Pencil, Trash2, Mail, FileText, Bell, Shield, Cookie, LogOut,
 } from "lucide-react";
 
 /* ----------------------------- design tokens ----------------------------- */
@@ -1069,39 +1069,51 @@ export default function AIPlanner() {
 
           {/* ---------------- MORE ---------------- */}
           {screen === "more" && (
-            <div style={{ padding: "24px 20px 20px 20px", background: COLOR.panel, textAlign: "center" }}>
-              <h1 style={{ fontSize: 24, fontWeight: 800, margin: "0 0 24px", color: COLOR.ink, textAlign: "left" }}>Ще</h1>
-              <div style={{ width: 112, height: 112, borderRadius: "50%", margin: "0 auto 14px", background: `linear-gradient(135deg, ${COLOR.tealLight}, ${COLOR.teal})`, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 8px 20px rgba(13,148,136,.25)" }}>
-                <span style={{ fontSize: 38, fontWeight: 700, color: "#fff" }}>АР</span>
+            <div style={{ background: COLOR.panel }}>
+              <div style={{ background: "linear-gradient(180deg, #51aa3a 0%, #265f18 100%)", padding: "28px 16px 20px 16px" }}>
+                <h1 style={{ fontSize: 28, fontWeight: 800, margin: 0, color: "#fff" }}>Інше</h1>
               </div>
-              <div style={{ fontSize: 22, fontWeight: 800, color: COLOR.ink }}>Алекс Рівера</div>
-              <div style={{ fontSize: 14, color: COLOR.sub, marginBottom: 28 }}>США — Сан-Франциско</div>
 
-
-              <div style={{ display: "flex", flexDirection: "column", gap: 14, textAlign: "left" }}>
-                <button type="button" onClick={() => showToast("Дякуємо — відгук збережено.")} style={moreBtn}><Mail size={20} /> Залишити відгук</button>
-                <div style={{ background: "#dbeafe", borderRadius: 18, padding: "6px 18px" }}>
-                  {[
-                    { icon: <FileText size={20} />, label: "Правила використання" },
-                    { icon: <Bell size={20} />, label: "Сповіщення" },
-                    { icon: <Shield size={20} />, label: "Політика конфіденційності" },
-                    { icon: <FileText size={20} />, label: "Умови використання" },
-                  ].map((row, i, arr) => (
-                    <div key={row.label} onClick={() => showToast(row.label + " — скоро з'явиться.")} style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 0", borderBottom: i < arr.length - 1 ? "1px solid rgba(30,58,95,.1)" : "none", fontSize: 15, color: "#1e3a5f", fontWeight: 600, cursor: "pointer" }}>
-                      {row.icon}{row.label}
-                    </div>
-                  ))}
+              <div style={{ background: COLOR.panel, borderTopLeftRadius: 24, borderTopRightRadius: 24, marginTop: -16, position: "relative", padding: "20px 16px 24px 16px", textAlign: "center" }}>
+                <div style={{ width: 112, height: 112, borderRadius: "50%", margin: "16px auto 14px", background: "#cdf9c2", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <span style={{ fontSize: 32, fontWeight: 700, color: "#0d2f04" }}>АР</span>
                 </div>
-                <button type="button" onClick={() => showToast("Кольорова схема: системна")} style={{ ...moreBtn, justifyContent: "space-between" }}>
-                  <span style={{ display: "flex", alignItems: "center", gap: 14 }}><Palette size={20} />Кольорова схема</span>
-                  <span style={{ color: COLOR.sub, fontWeight: 600 }}>Системна</span>
+                <div style={{ fontSize: 20, fontWeight: 600, color: COLOR.ink }}>Алекс Рівера</div>
+                <div style={{ fontSize: 14, color: COLOR.sub, marginBottom: 28 }}>Україна</div>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: 16, textAlign: "left" }}>
+                  <div style={{ background: "#fff", borderRadius: 20, boxShadow: "0 2px 4px rgba(0,0,0,.08)", padding: 8 }}>
+                    <button type="button" onClick={() => showToast("Дякуємо — відгук збережено.")} style={moreRow}>
+                      <Mail size={20} /> Залишити відгук
+                    </button>
+                  </div>
+
+                  <div style={{ background: "#fff", borderRadius: 20, boxShadow: "0 2px 4px rgba(0,0,0,.08)", padding: 8 }}>
+                    {[
+                      { icon: <Bell size={20} />, label: "Сповіщення" },
+                      { icon: <Shield size={20} />, label: "Політика конфіденційності" },
+                      { icon: <Cookie size={20} />, label: "Cookies" },
+                      { icon: <FileText size={20} />, label: "Правила використання" },
+                    ].map((row, i, arr) => (
+                      <button key={row.label} type="button" onClick={() => showToast(row.label + " — скоро з'явиться.")}
+                        style={{ ...moreRow, borderBottom: i < arr.length - 1 ? `1px solid ${COLOR.line}` : "none", borderRadius: 0 }}>
+                        {row.icon} {row.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div style={{ background: "#fff", borderRadius: 20, boxShadow: "0 2px 4px rgba(0,0,0,.08)", padding: 8 }}>
+                    <button type="button" onClick={() => showToast("Ви вийшли (демо).")} style={{ ...moreRow, color: COLOR.error }}>
+                      <LogOut size={20} /> Вийти
+                    </button>
+                  </div>
+                </div>
+
+                <button type="button" onClick={() => { setTasks(seedTasks()); showToast("Дані скинуто до демо-версії."); }} style={{ border: "none", background: "none", color: COLOR.faint, fontSize: 12, textDecoration: "underline", cursor: "pointer", marginTop: 24, padding: 0 }}>
+                  Скинути демо-дані
                 </button>
-                <button type="button" onClick={() => showToast("Ви вийшли (демо).")} style={{ ...moreBtn, color: "#dc2626" }}><LogOut size={20} /> Вийти</button>
+                <p style={{ fontSize: 12, color: COLOR.sub, fontWeight: 600, marginTop: 12 }}>Version 1.0.0</p>
               </div>
-              <button type="button" onClick={() => { setTasks(seedTasks()); showToast("Дані скинуто до демо-версії."); }} style={{ border: "none", background: "none", color: COLOR.faint, fontSize: 12, textDecoration: "underline", cursor: "pointer", marginTop: 28, padding: 0 }}>
-                Скинути демо-дані
-              </button>
-              <p style={{ fontSize: 12, color: COLOR.faint, marginTop: 10 }}>Версія 1.0.0</p>
             </div>
           )}
 
@@ -1218,4 +1230,4 @@ export default function AIPlanner() {
   );
 }
 
-const moreBtn = { display: "flex", alignItems: "center", gap: 14, background: "#dbeafe", border: "none", borderRadius: 18, padding: "16px 18px", cursor: "pointer", fontSize: 15, color: "#1e3a5f", fontWeight: 600 };
+const moreRow = { display: "flex", alignItems: "center", gap: 16, width: "100%", background: "none", border: "none", borderRadius: 14, padding: "12px 16px", cursor: "pointer", fontSize: 16, color: "#464d53", fontWeight: 600, fontFamily: "inherit", textAlign: "left" };
