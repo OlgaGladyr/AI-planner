@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import {
   Calendar, Home, Settings, Plus, X, Mic, Send, Square,
-  Pencil, Trash2, Mail, FileText, Bell, Shield, Cookie, LogOut,
+  Trash2, Mail, FileText, Bell, Shield, Cookie, LogOut,
 } from "lucide-react";
 
 /* ----------------------------- design tokens ----------------------------- */
@@ -429,19 +429,22 @@ const pickerInputStyle = { width: "100%", fontSize: 13, fontWeight: 600, border:
 
 
 const labelStyle = { fontSize: 12, fontWeight: 600, color: COLOR.sub, display: "block", marginBottom: 4 };
-const inputStyle = { width: "100%", fontSize: 12, border: `1px solid ${COLOR.line}`, borderRadius: 12, padding: "10px 12px", boxSizing: "border-box", color: COLOR.ink, background: "#fff", fontFamily: "inherit" };
-const smallGhostBtn = { display: "flex", alignItems: "center", gap: 6, border: `1px solid ${COLOR.line}`, background: "#fff", color: "#dc2626", fontSize: 13, fontWeight: 600, borderRadius: 10, cursor: "pointer", padding: "7px 10px" };
-const smallCancelBtn = { fontSize: 12, fontWeight: 600, padding: "7px 12px", border: `1px solid ${COLOR.line}`, borderRadius: 10, background: "#fff", color: "#374151", cursor: "pointer" };
-const smallSaveBtn = { fontSize: 12, fontWeight: 600, padding: "7px 14px", border: "none", borderRadius: 10, background: COLOR.teal, color: "#fff", cursor: "pointer" };
 
 /* ------------------------------- ThoughtCard ------------------------------- */
 
 function ThoughtCard({ thought, today, onChange, onRemove }) {
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(thought.text);
-  const [time, setTime] = useState(thought.time || "");
-  const [duration, setDuration] = useState(thought.duration ? String(thought.duration) : "");
+  const [time, setTime] = useState(thought.time || nowHHMM());
   const [date, setDate] = useState(offsetToDateInput(thought.dayOffset ?? 0, today));
+  const [dragX, setDragX] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const dragStartXRef = useRef(0);
+  const dragStartOffsetRef = useRef(0);
+  const draggingRef = useRef(false);
+  const movedRef = useRef(false);
+  const REVEAL_WIDTH = 60;
+  const OPEN_THRESHOLD = 24;
 
   const eff = thought;
   const timeParts = [];
@@ -454,13 +457,39 @@ function ThoughtCard({ thought, today, onChange, onRemove }) {
 
   const openEdit = () => {
     if (thought.action === "delete") return; // nothing to edit for a removal — just accept or cancel it
-    setText(thought.text); setTime(thought.time || ""); setDuration(thought.duration ? String(thought.duration) : "");
+    setText(thought.text); setTime(thought.time || nowHHMM());
     setDate(offsetToDateInput(thought.dayOffset ?? 0, today));
     setEditing(true);
   };
   const save = () => {
-    onChange({ ...thought, text, time: time || null, duration: duration ? Number(duration) : null, dayOffset: dateInputToOffset(date, today) });
+    onChange({ ...thought, text: text.trim() || thought.text, time: time || null, dayOffset: dateInputToOffset(date, today) });
     setEditing(false);
+  };
+
+  const onCardPointerDown = (e) => {
+    draggingRef.current = true;
+    movedRef.current = false;
+    dragStartXRef.current = e.clientX;
+    dragStartOffsetRef.current = dragX;
+    setDragging(true);
+  };
+  const onCardPointerMove = (e) => {
+    if (!draggingRef.current) return;
+    const delta = e.clientX - dragStartXRef.current;
+    if (Math.abs(delta) > 4) movedRef.current = true;
+    const next = Math.max(-REVEAL_WIDTH, Math.min(0, dragStartOffsetRef.current + delta));
+    setDragX(next);
+  };
+  const endDrag = () => {
+    if (!draggingRef.current) return;
+    draggingRef.current = false;
+    setDragging(false);
+    setDragX((x) => (x < -OPEN_THRESHOLD ? -REVEAL_WIDTH : 0));
+  };
+  const onCardClick = () => {
+    if (movedRef.current) { movedRef.current = false; return; }
+    if (dragX !== 0) { setDragX(0); return; }
+    openEdit();
   };
 
   const ActionBadge = () => {
@@ -484,58 +513,97 @@ function ThoughtCard({ thought, today, onChange, onRemove }) {
   }
 
   return (
-    <div style={{ position: "relative", background: "#fff", borderRadius: 20, padding: "12px 14px", boxShadow: "0 2px 4px rgba(0,36,51,.08)" }}>
-      {editing ? (
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <div>
-            {thought.action === "update" && <ActionBadge />}
-            <label style={{ ...labelStyle, marginTop: thought.action === "update" ? 6 : 0 }}>План</label>
-            <textarea
-              rows={Math.max(1, text.split("\n").length, Math.ceil(text.length / 38))}
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); save(); } if (e.key === "Escape") setEditing(false); }}
-              autoFocus
-              style={{ ...inputStyle, fontSize: 13, resize: "none" }}
-            />
-          </div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <div style={{ flex: 1 }}><label style={labelStyle}>День</label><input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={inputStyle} /></div>
-            <div style={{ flex: 1 }}><label style={labelStyle}>Час</label><input type="time" value={time} onChange={(e) => setTime(e.target.value)} style={inputStyle} /></div>
-            <div style={{ flex: 1 }}>
-              <label style={labelStyle}>Тривалість</label>
-              <select value={duration} onChange={(e) => setDuration(e.target.value)} style={inputStyle}>
-                <option value="">Немає</option><option value="15">15 хв</option><option value="30">30 хв</option>
-                <option value="45">45 хв</option><option value="60">1 год</option><option value="90">1.5 год</option><option value="120">2 год</option>
-              </select>
-            </div>
-          </div>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4, paddingTop: 10, borderTop: "1px solid #f1f3f5" }}>
-            <button type="button" onClick={() => { setEditing(false); onRemove(); }} style={smallGhostBtn}><Trash2 size={14} /> Видалити</button>
-            <div style={{ display: "flex", gap: 8 }}>
-              <button type="button" onClick={() => setEditing(false)} style={smallCancelBtn}>Скасувати</button>
-              <button type="button" onClick={save} style={smallSaveBtn}>Зберегти</button>
-            </div>
-          </div>
+    <>
+      <div style={{ position: "relative", borderRadius: 20, overflow: "hidden" }}>
+        <div style={{ position: "absolute", top: 0, right: 0, bottom: 0, display: "flex", alignItems: "center" }}>
+          <button
+            type="button"
+            aria-label="Видалити план"
+            onClick={(e) => { e.stopPropagation(); onRemove(); }}
+            style={{ width: 48, height: 48, borderRadius: "50%", border: "none", background: COLOR.error, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flex: "none" }}
+          >
+            <Trash2 size={20} />
+          </button>
         </div>
-      ) : (
-        <>
-          <div style={{ paddingRight: 78 }}>
-            {thought.action === "update" && <ActionBadge />}
-            <span onClick={openEdit} style={{ display: "block", fontSize: 13, lineHeight: 1.4, cursor: "pointer", color: COLOR.ink, marginTop: thought.action === "update" ? 4 : 0 }}>{thought.text}</span>
-          </div>
-          <div style={{ position: "absolute", top: 4, right: 6, display: "flex" }}>
-            <button type="button" aria-label="Редагувати" onClick={openEdit} style={iconBtn44}><Pencil size={16} /></button>
-            <button type="button" aria-label="Видалити" onClick={onRemove} style={iconBtn44}><X size={16} /></button>
-          </div>
+
+        <div
+          onPointerDown={onCardPointerDown}
+          onPointerMove={onCardPointerMove}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
+          onClick={onCardClick}
+          style={{
+            position: "relative", background: dragX !== 0 ? COLOR.panel : "#fff", borderRadius: 20, padding: "12px 14px",
+            boxShadow: "0 2px 4px rgba(0,36,51,.08)", cursor: "pointer",
+            transform: `translateX(${dragX}px)`, transition: dragging ? "none" : "background .15s ease, transform .2s ease",
+            touchAction: "pan-y",
+          }}
+        >
+          {thought.action === "update" && <ActionBadge />}
+          <span style={{ display: "block", fontSize: 13, lineHeight: 1.4, color: COLOR.ink, marginTop: thought.action === "update" ? 4 : 0 }}>{thought.text}</span>
           {timeLabel && (
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
               <span style={{ fontSize: 11, color: COLOR.sub }}>{timeLabel}</span>
             </div>
           )}
-        </>
+        </div>
+      </div>
+
+      {editing && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 60 }}>
+          <div onClick={() => setEditing(false)} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,.3)" }} />
+          <div
+            style={{
+              position: "absolute", left: "50%", bottom: 0, transform: "translateX(-50%)", width: "100%", maxWidth: 430,
+              background: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24,
+              boxShadow: "0 4px 8px 3px rgba(0,0,0,.15), 0 1px 3px rgba(0,0,0,.3)",
+              animation: "om-sheet-in .25s ease-out", maxHeight: "88vh", overflowY: "auto", boxSizing: "border-box",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "center", padding: "10px 0 4px" }}>
+              <div style={{ width: 32, height: 4, borderRadius: 99, background: COLOR.line }} />
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "8px 8px 8px 4px" }}>
+              <button type="button" aria-label="Закрити" onClick={() => setEditing(false)} style={{ border: "none", background: "none", color: COLOR.ink, cursor: "pointer", width: 40, height: 40, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}>
+                <X size={20} />
+              </button>
+              <span style={{ flex: 1, fontSize: 20, fontWeight: 600, color: COLOR.ink }}>Редагувати план</span>
+              <button type="button" onClick={() => { setEditing(false); onRemove(); }} aria-label="Видалити план" style={{ border: "none", background: "none", color: COLOR.error, cursor: "pointer", width: 40, height: 40, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}>
+                <Trash2 size={20} />
+              </button>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 20, padding: 16 }}>
+              {thought.action === "update" && <ActionBadge />}
+              <textarea
+                rows={Math.max(1, text.split("\n").length, Math.ceil(text.length / 38))}
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                style={{ width: "100%", border: `1px solid ${COLOR.teal}`, borderRadius: 28, padding: "12px 16px", fontSize: 16, fontFamily: "inherit", color: COLOR.ink, resize: "none", boxSizing: "border-box" }}
+              />
+
+              <div style={{ display: "flex", gap: 8 }}>
+                <div style={{ flex: 1 }}>
+                  <label style={labelStyle}>Дата</label>
+                  <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={pickerInputStyle} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={labelStyle}>Час</label>
+                  <input type="time" value={time} onChange={(e) => setTime(e.target.value)} style={pickerInputStyle} />
+                </div>
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "center", paddingTop: 8, borderTop: `1px solid ${COLOR.line}` }}>
+                <button type="button" onClick={save} style={{ width: "100%", border: "none", background: COLOR.teal, color: "#fff", fontSize: 15, fontWeight: 700, borderRadius: 14, padding: "13px 0", cursor: "pointer" }}>
+                  Зберегти
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
-    </div>
+    </>
   );
 }
 const badgeStyle = (bg, color) => ({ display: "inline-block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".03em", padding: "3px 8px", borderRadius: 99, background: bg, color });
