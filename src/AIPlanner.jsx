@@ -1,28 +1,30 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import {
-  CheckSquare, Calendar, Inbox as InboxIcon, MoreHorizontal, Plus, X, Mic, Send, Square,
-  Search, Pencil, Trash2, SkipForward, ChevronRight, Mail, FileText, Bell, Shield, Palette, LogOut,
+  Calendar, Home, Settings, Plus, X, Mic, Send, Square,
+  Trash2, Mail, FileText, Bell, Shield, Cookie, LogOut,
 } from "lucide-react";
 
 /* ----------------------------- design tokens ----------------------------- */
 
 const COLOR = {
-  teal: "#0d9488",
-  tealDark: "#0f766e",
-  tealLight: "#14b8a6",
+  teal: "#0d8390",        // brand accent — matches Figma "additional2" token
+  tealDark: "#095e68",    // pressed/hover teal
+  tealLight: "#14a8b8",   // lighter teal, used in gradients
+  tealInk: "#042a2f",     // dark-teal text on gradient/light-teal surfaces (Figma "on-additional2-container")
+  success: "#26890d",     // completed-state green (Figma "additional1") — distinct from brand teal
+  primary: "#007cb0",     // metadata/date-chip blue (Figma "primary") — distinct from the teal accent
+  error: "#da291c",       // swipe-to-delete button (Figma "error") — matches the design system exactly
   rose: "#f43f5e",
   ink: "#111827",
   sub: "#6b7280",
   faint: "#9ca3af",
   line: "#e5e7eb",
-  panel: "#f9fafb",
+  panel: "#f4f5f5",       // Figma "surface-3" — bottom-sheet / screen background
   card: "#ffffff",
-};
-
-const PRIORITY = {
-  high: { border: "#5eead4", bg: "#f0fdfa", text: "#0f766e", label: "Високий" },
-  med: { border: "#ea580c", bg: "#fff7ed", text: "#ea580c", label: "Середній" },
-  low: { border: "#e5e7eb", bg: "#f3f4f6", text: "#374151", label: "Низький" },
+  navBg: "#0b0d0e",        // dark bottom-nav background (Figma "inverse-surface")
+  navActive: "#f1f3f4",    // active nav icon/label (Figma "inverse-on-surface")
+  navInactive: "#c8ccd0",  // inactive nav icon/label (Figma "inverse-on-surface-variant")
+  navPill: "rgba(241,243,244,0.16)", // active-tab pill highlight behind the icon
 };
 
 const FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,Helvetica,Arial,sans-serif";
@@ -32,6 +34,7 @@ const FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,Helvetica
 function startOfDay(d) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
 function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
 function pad2(n) { return String(n).padStart(2, "0"); }
+function nowHHMM() { const d = new Date(); return pad2(d.getHours()) + ":" + pad2(d.getMinutes()); }
 function toDateInput(d) { return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate()); }
 function dateInputToOffset(dateStr, today) {
   const d = new Date(dateStr + "T00:00:00");
@@ -67,7 +70,7 @@ function pluralUk(n, one, few, many) {
 }
 
 /* -------------------------- lightweight NLP parse -------------------------- */
-/* Turns a free-typed thought into a best-guess day / time / priority, the   */
+/* Turns a free-typed thought into a best-guess day / time, the           */
 /* same way the "Accept plans" step in the design is meant to behave.        */
 
 function parseThought(raw, today) {
@@ -105,10 +108,6 @@ function parseThought(raw, today) {
     time = pad2(parseInt(mUk[1], 10)) + ":" + (mUk[2] || "00");
   }
 
-  let priority = "med";
-  if (/\basap\b|urgent|important|priority|терміново|важливо|асап|пріоритет/.test(lower)) priority = "high";
-  if (/maybe|sometime|someday|whenever|можливо|колись|іноді/.test(lower)) priority = "low";
-
   const hasDayWord = /\btomorrow\b|\btoday\b|\btonight\b|\bnext week\b|завтра|сьогодні|наступн(ого|ий) тижн/.test(lower) ||
     weekdayNames.some((n) => new RegExp("\\b" + n + "\\b").test(lower)) ||
     weekdayNamesUk.some((n) => new RegExp(n).test(lower));
@@ -118,7 +117,7 @@ function parseThought(raw, today) {
   // The offline fallback never has enough context to safely match an existing
   // task, so everything it produces is always a fresh "create" — matching an
   // existing item and editing/removing it is only attempted by the real AI path.
-  return { text, dayOffset, time, priority, action: "create", taskId: null };
+  return { text, dayOffset, time, action: "create", taskId: null };
 }
 
 const MAX_DRAFT_CHARS = 2000; // a sane cap on one dictation/typing chunk, same spirit as Structured's ~2,000 char cap
@@ -161,7 +160,6 @@ async function parseThoughtsRemote(rawTexts, today, existingTasksContext) {
     dayOffset: r.date ? dateInputToOffset(r.date, today) : null,
     time: r.time || null,
     duration: r.duration || null,
-    priority: r.priority || "med",
     action: ["create", "update", "delete"].includes(r.action) ? r.action : "create",
     taskId: r.task_id || null,
   }));
@@ -198,17 +196,17 @@ function nextSeqFrom(tasks, prefix) {
 
 function seedTasks() {
   return [
-    { id: "t1", text: "Ранкові нотатки", time: "08:30", duration: null, priority: "low", status: "pending", dayOffset: 0 },
-    { id: "t2", text: "Нарада з командою", time: "09:30", duration: 30, priority: "med", status: "pending", dayOffset: 0 },
-    { id: "t3", text: "Переглянути PR від Алекса", time: "11:00", duration: null, priority: "med", status: "pending", dayOffset: 0 },
-    { id: "t4", text: "Дзвінок клієнту — продовження договору Acme", time: "15:00", duration: 60, priority: "high", status: "pending", dayOffset: 0 },
-    { id: "t5", text: "Забрати дітей зі школи", time: "17:30", duration: null, priority: "med", status: "pending", dayOffset: 0 },
-    { id: "t6", text: "Переглянути документ із відгуками щодо дизайну", time: null, duration: null, priority: "low", status: "pending", dayOffset: 0 },
-    { id: "t7", text: "Прийом у стоматолога", time: "10:00", duration: 60, priority: "med", status: "pending", dayOffset: 1 },
-    { id: "t8", text: "Скласти план статті для блогу", time: null, duration: null, priority: "low", status: "pending", dayOffset: 1 },
-    { id: "t9", text: "Підготувати документ планування на 3 квартал", time: null, duration: null, priority: "high", status: "pending", dayOffset: 5 },
-    { id: "t10", text: "Підібрати новий мікрофон для подкасту", time: null, duration: null, priority: "low", status: "pending", dayOffset: null },
-    { id: "t11", text: "Подати звіт про витрати", time: "10:00", duration: null, priority: "med", status: "pending", dayOffset: -1 },
+    { id: "t1", text: "Ранкові нотатки", time: "08:30", duration: null, status: "pending", dayOffset: 0 },
+    { id: "t2", text: "Нарада з командою", time: "09:30", duration: 30, status: "pending", dayOffset: 0 },
+    { id: "t3", text: "Переглянути PR від Алекса", time: "11:00", duration: null, status: "pending", dayOffset: 0 },
+    { id: "t4", text: "Дзвінок клієнту — продовження договору Acme", time: "15:00", duration: 60, status: "pending", dayOffset: 0 },
+    { id: "t5", text: "Забрати дітей зі школи", time: "17:30", duration: null, status: "pending", dayOffset: 0 },
+    { id: "t6", text: "Переглянути документ із відгуками щодо дизайну", time: null, duration: null, status: "pending", dayOffset: 0 },
+    { id: "t7", text: "Прийом у стоматолога", time: "10:00", duration: 60, status: "pending", dayOffset: 1 },
+    { id: "t8", text: "Скласти план статті для блогу", time: null, duration: null, status: "pending", dayOffset: 1 },
+    { id: "t9", text: "Підготувати документ планування на 3 квартал", time: null, duration: null, status: "pending", dayOffset: 5 },
+    { id: "t10", text: "Підібрати новий мікрофон для подкасту", time: null, duration: null, status: "pending", dayOffset: null },
+    { id: "t11", text: "Подати звіт про витрати", time: "10:00", duration: null, status: "pending", dayOffset: -1 },
   ];
 }
 
@@ -225,28 +223,25 @@ const MOCK_PHRASES = [
 
 /* --------------------------------- icons --------------------------------- */
 
-function FlagIcon({ size = 11, color }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
-      <rect x="4" y="3" width="2" height="18" rx="1" />
-      <path d="M6 4h13l-3 4 3 4H6z" />
-    </svg>
-  );
-}
-
 /* -------------------------------- TaskRow --------------------------------- */
 
-function TaskRow({ task, today, allowDayPicker, overdue, justMoved, onSave, onDiscard, onToggleDone, onSkip }) {
+function TaskRow({ task, today, justMoved, metaVariant = "default", onSave, onDiscard, onToggleDone }) {
   const [editing, setEditing] = useState(false);
-  const [time, setTime] = useState(task.time || "");
-  const [duration, setDuration] = useState(task.duration ? String(task.duration) : "");
-  const [priority, setPriority] = useState(task.priority);
+  const [text, setText] = useState(task.text);
+  const [time, setTime] = useState(task.time || nowHHMM());
   const [date, setDate] = useState(offsetToDateInput(task.dayOffset ?? 0, today));
+  const [dragX, setDragX] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const dragStartXRef = useRef(0);
+  const dragStartOffsetRef = useRef(0);
+  const draggingRef = useRef(false);
+  const movedRef = useRef(false);
+  const REVEAL_WIDTH = 60; // 48px delete button + 12px gap, matching the Figma "Delete swipe right" spec
+  const OPEN_THRESHOLD = 24;
 
   const openEdit = () => {
-    setTime(task.time || "");
-    setDuration(task.duration ? String(task.duration) : "");
-    setPriority(task.priority);
+    setText(task.text);
+    setTime(task.time || nowHHMM());
     setDate(offsetToDateInput(task.dayOffset ?? 0, today));
     setEditing(true);
   };
@@ -254,41 +249,88 @@ function TaskRow({ task, today, allowDayPicker, overdue, justMoved, onSave, onDi
   const save = () => {
     onSave({
       ...task,
+      text: text.trim() || task.text,
       time: time || null,
-      duration: duration ? Number(duration) : null,
-      priority,
-      dayOffset: allowDayPicker ? dateInputToOffset(date, today) : task.dayOffset,
+      dayOffset: dateInputToOffset(date, today),
     });
     setEditing(false);
   };
 
-  const pri = PRIORITY[task.priority] || PRIORITY.low;
+  const onCardPointerDown = (e) => {
+    draggingRef.current = true;
+    movedRef.current = false;
+    dragStartXRef.current = e.clientX;
+    dragStartOffsetRef.current = dragX;
+    setDragging(true);
+  };
+  const onCardPointerMove = (e) => {
+    if (!draggingRef.current) return;
+    const delta = e.clientX - dragStartXRef.current;
+    if (Math.abs(delta) > 4) movedRef.current = true;
+    const next = Math.max(-REVEAL_WIDTH, Math.min(0, dragStartOffsetRef.current + delta));
+    setDragX(next);
+  };
+  const endDrag = () => {
+    if (!draggingRef.current) return;
+    draggingRef.current = false;
+    setDragging(false);
+    setDragX((x) => (x < -OPEN_THRESHOLD ? -REVEAL_WIDTH : 0));
+  };
+  const onCardClick = () => {
+    if (movedRef.current) { movedRef.current = false; return; } // just finished a swipe, not a tap
+    if (dragX !== 0) { setDragX(0); return; } // tap while revealed just closes it
+    openEdit();
+  };
+
   const done = task.status === "done";
   const skipped = task.status === "skipped";
 
   return (
-    <div
-      style={{
-        background: COLOR.card,
-        borderRadius: 16,
-        padding: "12px 14px",
-        boxShadow: "0 1px 3px rgba(17,24,39,.06)",
-        borderLeft: overdue ? `3px solid ${COLOR.rose}` : "none",
-        animation: justMoved ? "om-move-in .55s cubic-bezier(.2,.9,.3,1)" : "none",
-        opacity: skipped ? 0.6 : 1,
-      }}
-    >
-      {!editing && (
-        <>
+    <>
+      <div style={{ position: "relative", borderRadius: 20, overflow: "hidden" }}>
+        <div style={{ position: "absolute", top: 0, right: 0, bottom: 0, display: "flex", alignItems: "center" }}>
+          <button
+            type="button"
+            aria-label="Видалити план"
+            onClick={(e) => { e.stopPropagation(); onDiscard(); }}
+            style={{
+              width: 48, height: 48, borderRadius: "50%", border: "none", background: COLOR.error, color: "#fff",
+              display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flex: "none",
+            }}
+          >
+            <Trash2 size={20} />
+          </button>
+        </div>
+
+        <div
+          onPointerDown={onCardPointerDown}
+          onPointerMove={onCardPointerMove}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
+          onClick={onCardClick}
+          style={{
+            background: dragX !== 0 ? COLOR.panel : COLOR.card,
+            borderRadius: 20,
+            padding: "12px 14px",
+            boxShadow: "0 2px 4px rgba(0,36,51,.08)",
+            animation: justMoved ? "om-move-in .55s cubic-bezier(.2,.9,.3,1)" : "none",
+            opacity: skipped ? 0.6 : 1,
+            cursor: "pointer",
+            position: "relative",
+            transform: `translateX(${dragX}px)`,
+            transition: dragging ? "none" : "background .15s ease, transform .2s ease",
+            touchAction: "pan-y",
+          }}
+        >
           <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
             <button
               type="button"
               aria-label={done ? "Позначити як невиконане" : "Позначити як виконане"}
-              onClick={onToggleDone}
+              onClick={(e) => { e.stopPropagation(); onToggleDone(); }}
               style={{
                 flex: "none", marginTop: 1, width: 20, height: 20, borderRadius: 7, cursor: "pointer",
                 border: done ? "none" : `1.5px solid ${COLOR.line}`,
-                background: done ? COLOR.teal : "#fff",
+                background: done ? COLOR.success : "#fff",
                 display: "flex", alignItems: "center", justifyContent: "center", padding: 0,
               }}
             >
@@ -300,142 +342,147 @@ function TaskRow({ task, today, allowDayPicker, overdue, justMoved, onSave, onDi
             </button>
 
             <span
-              onClick={openEdit}
               style={{
-                flex: 1, fontSize: 14, lineHeight: 1.4, cursor: "pointer", color: done ? COLOR.faint : COLOR.ink,
+                flex: 1, fontSize: 14, lineHeight: 1.4, color: done ? COLOR.faint : COLOR.ink,
                 textDecoration: done ? "line-through" : "none",
               }}
             >
               {task.text}
             </span>
-
-            <button
-              type="button"
-              aria-label="Редагувати"
-              onClick={openEdit}
-              style={{ border: "none", background: "none", color: COLOR.sub, cursor: "pointer", padding: 4, flex: "none" }}
-            >
-              <Pencil size={14} />
-            </button>
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, paddingLeft: 30 }}>
-            {task.time && <span style={{ fontSize: 11, color: COLOR.sub }}>{formatTimeShort(task.time)}{task.duration ? " – " + formatTimeShort(shiftTime(task.time, task.duration)) : ""}</span>}
-            {skipped && <span style={{ fontSize: 11, fontWeight: 700, color: COLOR.faint }}>Пропущено</span>}
-            <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, color: pri.text }}>
-              {pri.label}<FlagIcon color={pri.text} />
-            </span>
+            {metaVariant === "chip" ? (
+              task.dayOffset !== null && (
+                <span style={{ fontSize: 12, fontWeight: 600, color: task.dayOffset === 0 ? COLOR.primary : COLOR.success }}>
+                  📅 {offsetToLabel(task.dayOffset, today)}{task.time ? `, ${formatTimeShort(task.time)}` : ""}
+                </span>
+              )
+            ) : (
+              <>
+                {task.time && <span style={{ fontSize: 11, color: COLOR.sub }}>{formatTimeShort(task.time)}{task.duration ? " – " + formatTimeShort(shiftTime(task.time, task.duration)) : ""}</span>}
+                {skipped && <span style={{ fontSize: 11, fontWeight: 700, color: COLOR.faint }}>Пропущено</span>}
+              </>
+            )}
           </div>
-        </>
-      )}
+        </div>
+      </div>
 
       {editing && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: COLOR.ink }}>{task.text}</div>
-
-          <div style={{ display: "flex", gap: 8 }}>
-            {allowDayPicker && (
-              <div style={{ flex: 1 }}>
-                <label style={labelStyle}>День</label>
-                <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={inputStyle} />
-              </div>
-            )}
-            <div style={{ flex: 1 }}>
-              <label style={labelStyle}>Час</label>
-              <input type="time" value={time} onChange={(e) => setTime(e.target.value)} style={inputStyle} />
+        <div style={{ position: "fixed", inset: 0, zIndex: 60 }}>
+          <div onClick={() => setEditing(false)} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,.3)" }} />
+          <div
+            style={{
+              position: "absolute", left: "50%", bottom: 0, transform: "translateX(-50%)", width: "100%", maxWidth: 430,
+              background: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24,
+              boxShadow: "0 4px 8px 3px rgba(0,0,0,.15), 0 1px 3px rgba(0,0,0,.3)",
+              animation: "om-sheet-in .25s ease-out", maxHeight: "88vh", overflowY: "auto", boxSizing: "border-box",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "center", padding: "10px 0 4px" }}>
+              <div style={{ width: 32, height: 4, borderRadius: 99, background: COLOR.line }} />
             </div>
-            <div style={{ flex: 1 }}>
-              <label style={labelStyle}>Тривалість</label>
-              <select value={duration} onChange={(e) => setDuration(e.target.value)} style={inputStyle}>
-                <option value="">Немає</option>
-                <option value="15">15 хв</option>
-                <option value="30">30 хв</option>
-                <option value="45">45 хв</option>
-                <option value="60">1 год</option>
-                <option value="90">1.5 год</option>
-                <option value="120">2 год</option>
-              </select>
-            </div>
-          </div>
 
-          <div>
-            <label style={labelStyle}>Пріоритет</label>
-            <div style={{ display: "flex", gap: 6 }}>
-              {["high", "med", "low"].map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => setPriority(p)}
-                  style={{
-                    flex: 1, padding: "6px 0", borderRadius: 99, cursor: "pointer", fontSize: 11, fontWeight: 600,
-                    border: `1px solid ${priority === p ? PRIORITY[p].border : COLOR.line}`,
-                    background: priority === p ? PRIORITY[p].bg : "#fff",
-                    color: priority === p ? PRIORITY[p].text : "#374151",
-                  }}
-                >
-                  {PRIORITY[p].label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4, paddingTop: 10, borderTop: "1px solid #f1f3f5" }}>
-            <div style={{ display: "flex", gap: 6 }}>
-              <button type="button" onClick={() => { setEditing(false); onDiscard(); }} aria-label="Видалити" style={smallGhostBtn}>
-                <Trash2 size={14} /> Видалити
+            <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "8px 8px 8px 4px" }}>
+              <button type="button" aria-label="Закрити" onClick={() => setEditing(false)} style={{ border: "none", background: "none", color: COLOR.ink, cursor: "pointer", width: 40, height: 40, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}>
+                <X size={20} />
               </button>
-              {onSkip && (
-                <button type="button" onClick={() => { setEditing(false); onSkip(); }} aria-label="Пропустити" style={smallGhostBtn}>
-                  <SkipForward size={14} /> Пропустити
-                </button>
-              )}
+              <span style={{ flex: 1, fontSize: 20, fontWeight: 600, color: COLOR.ink }}>Редагувати план</span>
+              <button type="button" onClick={() => { setEditing(false); onDiscard(); }} aria-label="Видалити план" style={{ border: "none", background: "none", color: COLOR.error, cursor: "pointer", width: 40, height: 40, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}>
+                <Trash2 size={20} />
+              </button>
             </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <button type="button" onClick={() => setEditing(false)} style={smallCancelBtn}>Скасувати</button>
-              <button type="button" onClick={save} style={smallSaveBtn}>Зберегти</button>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 20, padding: 16 }}>
+              <textarea
+                rows={Math.max(1, text.split("\n").length, Math.ceil(text.length / 38))}
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                style={{ width: "100%", border: `1px solid ${COLOR.teal}`, borderRadius: 28, padding: "12px 16px", fontSize: 16, fontFamily: "inherit", color: COLOR.ink, resize: "none", boxSizing: "border-box" }}
+              />
+
+              <div style={{ display: "flex", gap: 8 }}>
+                <div style={{ flex: 1 }}>
+                  <label style={labelStyle}>Дата</label>
+                  <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={pickerInputStyle} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={labelStyle}>Час</label>
+                  <input type="time" value={time} onChange={(e) => setTime(e.target.value)} style={pickerInputStyle} />
+                </div>
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "center", paddingTop: 8, borderTop: `1px solid ${COLOR.line}` }}>
+                <button type="button" onClick={save} style={{ width: "100%", border: "none", background: COLOR.teal, color: "#fff", fontSize: 15, fontWeight: 700, borderRadius: 14, padding: "13px 0", cursor: "pointer" }}>
+                  Зберегти
+                </button>
+              </div>
             </div>
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
 
+const pickerInputStyle = { width: "100%", fontSize: 13, fontWeight: 600, border: `1px solid ${COLOR.line}`, borderRadius: 12, padding: "10px 12px", boxSizing: "border-box", color: COLOR.ink, background: "#fff", fontFamily: "inherit" };
+
+
 const labelStyle = { fontSize: 12, fontWeight: 600, color: COLOR.sub, display: "block", marginBottom: 4 };
-const inputStyle = { width: "100%", fontSize: 12, border: `1px solid ${COLOR.line}`, borderRadius: 12, padding: "10px 12px", boxSizing: "border-box", color: COLOR.ink, background: "#fff", fontFamily: "inherit" };
-const smallGhostBtn = { display: "flex", alignItems: "center", gap: 6, border: `1px solid ${COLOR.line}`, background: "#fff", color: "#dc2626", fontSize: 13, fontWeight: 600, borderRadius: 10, cursor: "pointer", padding: "7px 10px" };
-const smallCancelBtn = { fontSize: 12, fontWeight: 600, padding: "7px 12px", border: `1px solid ${COLOR.line}`, borderRadius: 10, background: "#fff", color: "#374151", cursor: "pointer" };
-const smallSaveBtn = { fontSize: 12, fontWeight: 600, padding: "7px 14px", border: "none", borderRadius: 10, background: COLOR.teal, color: "#fff", cursor: "pointer" };
 
 /* ------------------------------- ThoughtCard ------------------------------- */
 
 function ThoughtCard({ thought, today, onChange, onRemove }) {
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(thought.text);
-  const [time, setTime] = useState(thought.time || "");
-  const [duration, setDuration] = useState(thought.duration ? String(thought.duration) : "");
-  const [priority, setPriority] = useState(thought.priority);
+  const [time, setTime] = useState(thought.time || nowHHMM());
   const [date, setDate] = useState(offsetToDateInput(thought.dayOffset ?? 0, today));
+  const [dragX, setDragX] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const dragStartXRef = useRef(0);
+  const dragStartOffsetRef = useRef(0);
+  const draggingRef = useRef(false);
+  const movedRef = useRef(false);
+  const REVEAL_WIDTH = 60;
+  const OPEN_THRESHOLD = 24;
 
   const eff = thought;
-  const timeParts = [];
-  if (eff.dayOffset !== 0 && eff.dayOffset !== null && eff.dayOffset !== undefined) {
-    const lbl = offsetToLabel(eff.dayOffset, today);
-    if (lbl) timeParts.push(lbl);
-  }
-  if (eff.time) timeParts.push(eff.duration ? formatTimeShort(eff.time) + " – " + formatTimeShort(shiftTime(eff.time, eff.duration)) : formatTimeShort(eff.time));
-  const timeLabel = timeParts.join(" · ");
-  const pri = PRIORITY[eff.priority] || PRIORITY.med;
 
   const openEdit = () => {
     if (thought.action === "delete") return; // nothing to edit for a removal — just accept or cancel it
-    setText(thought.text); setTime(thought.time || ""); setDuration(thought.duration ? String(thought.duration) : "");
-    setPriority(thought.priority); setDate(offsetToDateInput(thought.dayOffset ?? 0, today));
+    setText(thought.text); setTime(thought.time || nowHHMM());
+    setDate(offsetToDateInput(thought.dayOffset ?? 0, today));
     setEditing(true);
   };
   const save = () => {
-    onChange({ ...thought, text, time: time || null, duration: duration ? Number(duration) : null, priority, dayOffset: dateInputToOffset(date, today) });
+    onChange({ ...thought, text: text.trim() || thought.text, time: time || null, dayOffset: dateInputToOffset(date, today) });
     setEditing(false);
+  };
+
+  const onCardPointerDown = (e) => {
+    draggingRef.current = true;
+    movedRef.current = false;
+    dragStartXRef.current = e.clientX;
+    dragStartOffsetRef.current = dragX;
+    setDragging(true);
+  };
+  const onCardPointerMove = (e) => {
+    if (!draggingRef.current) return;
+    const delta = e.clientX - dragStartXRef.current;
+    if (Math.abs(delta) > 4) movedRef.current = true;
+    const next = Math.max(-REVEAL_WIDTH, Math.min(0, dragStartOffsetRef.current + delta));
+    setDragX(next);
+  };
+  const endDrag = () => {
+    if (!draggingRef.current) return;
+    draggingRef.current = false;
+    setDragging(false);
+    setDragX((x) => (x < -OPEN_THRESHOLD ? -REVEAL_WIDTH : 0));
+  };
+  const onCardClick = () => {
+    if (movedRef.current) { movedRef.current = false; return; }
+    if (dragX !== 0) { setDragX(0); return; }
+    openEdit();
   };
 
   const ActionBadge = () => {
@@ -446,7 +493,7 @@ function ThoughtCard({ thought, today, onChange, onRemove }) {
 
   if (thought.action === "delete") {
     return (
-      <div style={{ position: "relative", background: "#fff", borderRadius: 16, padding: "12px 14px", boxShadow: "0 1px 3px rgba(17,24,39,.06)" }}>
+      <div style={{ position: "relative", background: "#fff", borderRadius: 20, padding: "12px 14px", boxShadow: "0 2px 4px rgba(0,36,51,.08)" }}>
         <div style={{ paddingRight: 40 }}>
           <ActionBadge />
           <p style={{ fontSize: 13, lineHeight: 1.4, color: COLOR.ink, margin: "6px 0 0" }}>
@@ -459,70 +506,99 @@ function ThoughtCard({ thought, today, onChange, onRemove }) {
   }
 
   return (
-    <div style={{ position: "relative", background: "#fff", borderRadius: 16, padding: "12px 14px", boxShadow: "0 1px 3px rgba(17,24,39,.06)" }}>
-      {editing ? (
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <div>
-            {thought.action === "update" && <ActionBadge />}
-            <label style={{ ...labelStyle, marginTop: thought.action === "update" ? 6 : 0 }}>План</label>
-            <textarea
-              rows={Math.max(1, text.split("\n").length, Math.ceil(text.length / 38))}
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); save(); } if (e.key === "Escape") setEditing(false); }}
-              autoFocus
-              style={{ ...inputStyle, fontSize: 13, resize: "none" }}
-            />
-          </div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <div style={{ flex: 1 }}><label style={labelStyle}>День</label><input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={inputStyle} /></div>
-            <div style={{ flex: 1 }}><label style={labelStyle}>Час</label><input type="time" value={time} onChange={(e) => setTime(e.target.value)} style={inputStyle} /></div>
-            <div style={{ flex: 1 }}>
-              <label style={labelStyle}>Тривалість</label>
-              <select value={duration} onChange={(e) => setDuration(e.target.value)} style={inputStyle}>
-                <option value="">Немає</option><option value="15">15 хв</option><option value="30">30 хв</option>
-                <option value="45">45 хв</option><option value="60">1 год</option><option value="90">1.5 год</option><option value="120">2 год</option>
-              </select>
+    <>
+      <div style={{ position: "relative", borderRadius: 20, overflow: "hidden" }}>
+        <div style={{ position: "absolute", top: 0, right: 0, bottom: 0, display: "flex", alignItems: "center" }}>
+          <button
+            type="button"
+            aria-label="Видалити план"
+            onClick={(e) => { e.stopPropagation(); onRemove(); }}
+            style={{ width: 48, height: 48, borderRadius: "50%", border: "none", background: COLOR.error, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flex: "none" }}
+          >
+            <Trash2 size={20} />
+          </button>
+        </div>
+
+        <div
+          onPointerDown={onCardPointerDown}
+          onPointerMove={onCardPointerMove}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
+          onClick={onCardClick}
+          style={{
+            position: "relative", background: dragX !== 0 ? COLOR.panel : "#fff", borderRadius: 20, padding: "12px 14px",
+            boxShadow: "0 2px 4px rgba(0,36,51,.08)", cursor: "pointer",
+            transform: `translateX(${dragX}px)`, transition: dragging ? "none" : "background .15s ease, transform .2s ease",
+            touchAction: "pan-y",
+          }}
+        >
+          {thought.action === "update" && <ActionBadge />}
+          <span style={{ display: "block", fontSize: 13, lineHeight: 1.4, color: COLOR.ink, marginTop: thought.action === "update" ? 4 : 0 }}>{thought.text}</span>
+          {eff.dayOffset !== null && eff.dayOffset !== undefined && (
+            <div style={{ marginTop: 6 }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: eff.dayOffset === 0 ? COLOR.primary : COLOR.success }}>
+                📅 {offsetToLabel(eff.dayOffset, today)}{eff.time ? `, ${formatTimeShort(eff.time)}` : ""}
+              </span>
             </div>
-          </div>
-          <div>
-            <label style={labelStyle}>Пріоритет</label>
-            <div style={{ display: "flex", gap: 6 }}>
-              {["high", "med", "low"].map((p) => (
-                <button key={p} type="button" onClick={() => setPriority(p)} style={{
-                  flex: 1, padding: "6px 0", borderRadius: 99, cursor: "pointer", fontSize: 11, fontWeight: 600,
-                  border: `1px solid ${priority === p ? PRIORITY[p].border : COLOR.line}`,
-                  background: priority === p ? PRIORITY[p].bg : "#fff",
-                  color: priority === p ? PRIORITY[p].text : "#374151",
-                }}>{PRIORITY[p].label}</button>
-              ))}
+          )}
+        </div>
+      </div>
+
+      {editing && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 60 }}>
+          <div onClick={() => setEditing(false)} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,.3)" }} />
+          <div
+            style={{
+              position: "absolute", left: "50%", bottom: 0, transform: "translateX(-50%)", width: "100%", maxWidth: 430,
+              background: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24,
+              boxShadow: "0 4px 8px 3px rgba(0,0,0,.15), 0 1px 3px rgba(0,0,0,.3)",
+              animation: "om-sheet-in .25s ease-out", maxHeight: "88vh", overflowY: "auto", boxSizing: "border-box",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "center", padding: "10px 0 4px" }}>
+              <div style={{ width: 32, height: 4, borderRadius: 99, background: COLOR.line }} />
             </div>
-          </div>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4, paddingTop: 10, borderTop: "1px solid #f1f3f5" }}>
-            <button type="button" onClick={() => { setEditing(false); onRemove(); }} style={smallGhostBtn}><Trash2 size={14} /> Видалити</button>
-            <div style={{ display: "flex", gap: 8 }}>
-              <button type="button" onClick={() => setEditing(false)} style={smallCancelBtn}>Скасувати</button>
-              <button type="button" onClick={save} style={smallSaveBtn}>Зберегти</button>
+
+            <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "8px 8px 8px 4px" }}>
+              <button type="button" aria-label="Закрити" onClick={() => setEditing(false)} style={{ border: "none", background: "none", color: COLOR.ink, cursor: "pointer", width: 40, height: 40, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}>
+                <X size={20} />
+              </button>
+              <span style={{ flex: 1, fontSize: 20, fontWeight: 600, color: COLOR.ink }}>Редагувати план</span>
+              <button type="button" onClick={() => { setEditing(false); onRemove(); }} aria-label="Видалити план" style={{ border: "none", background: "none", color: COLOR.error, cursor: "pointer", width: 40, height: 40, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}>
+                <Trash2 size={20} />
+              </button>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 20, padding: 16 }}>
+              {thought.action === "update" && <ActionBadge />}
+              <textarea
+                rows={Math.max(1, text.split("\n").length, Math.ceil(text.length / 38))}
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                style={{ width: "100%", border: `1px solid ${COLOR.teal}`, borderRadius: 28, padding: "12px 16px", fontSize: 16, fontFamily: "inherit", color: COLOR.ink, resize: "none", boxSizing: "border-box" }}
+              />
+
+              <div style={{ display: "flex", gap: 8 }}>
+                <div style={{ flex: 1 }}>
+                  <label style={labelStyle}>Дата</label>
+                  <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={pickerInputStyle} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={labelStyle}>Час</label>
+                  <input type="time" value={time} onChange={(e) => setTime(e.target.value)} style={pickerInputStyle} />
+                </div>
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "center", paddingTop: 8, borderTop: `1px solid ${COLOR.line}` }}>
+                <button type="button" onClick={save} style={{ width: "100%", border: "none", background: COLOR.teal, color: "#fff", fontSize: 15, fontWeight: 700, borderRadius: 14, padding: "13px 0", cursor: "pointer" }}>
+                  Зберегти
+                </button>
+              </div>
             </div>
           </div>
         </div>
-      ) : (
-        <>
-          <div style={{ paddingRight: 78 }}>
-            {thought.action === "update" && <ActionBadge />}
-            <span onClick={openEdit} style={{ display: "block", fontSize: 13, lineHeight: 1.4, cursor: "pointer", color: COLOR.ink, marginTop: thought.action === "update" ? 4 : 0 }}>{thought.text}</span>
-          </div>
-          <div style={{ position: "absolute", top: 4, right: 6, display: "flex" }}>
-            <button type="button" aria-label="Редагувати" onClick={openEdit} style={iconBtn44}><Pencil size={16} /></button>
-            <button type="button" aria-label="Видалити" onClick={onRemove} style={iconBtn44}><X size={16} /></button>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
-            {timeLabel && <span style={{ fontSize: 11, color: COLOR.sub }}>{timeLabel}</span>}
-            <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, color: pri.text }}>{pri.label}<FlagIcon color={pri.text} /></span>
-          </div>
-        </>
       )}
-    </div>
+    </>
   );
 }
 const badgeStyle = (bg, color) => ({ display: "inline-block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".03em", padding: "3px 8px", borderRadius: 99, background: bg, color });
@@ -548,9 +624,7 @@ export default function AIPlanner() {
   const [lastTab, setLastTab] = useState("today");
   const [tasks, setTasks] = useState(() => loadSavedTasks() || seedTasks());
 
-  const [upcomingDay, setUpcomingDay] = useState(null); // null = "all" grouped view
-  const [inboxSearch, setInboxSearch] = useState("");
-  const [showInboxSearch, setShowInboxSearch] = useState(false);
+  const [upcomingDay, setUpcomingDay] = useState(0); // 0 = today selected by default; null = "all" grouped view
 
   const [capturedThoughts, setCapturedThoughts] = useState([]);
   const [textDraft, setTextDraft] = useState("");
@@ -567,6 +641,8 @@ export default function AIPlanner() {
   const [justMovedId, setJustMovedId] = useState(null);
 
   const undoRef = useRef(null);
+  const taskUndoRef = useRef(null);
+  const taskUndoTimeout = useRef(null);
   const recIntervalRef = useRef(null);
   const recBaseRef = useRef("");
   const recognitionRef = useRef(null);
@@ -640,12 +716,26 @@ export default function AIPlanner() {
       return prev.map((t) => (t.id === updated.id ? updated : t));
     });
   };
-  const discardTask = (id) => setTasks((prev) => prev.filter((t) => t.id !== id));
+  const discardTask = (id) => {
+    setTasks((prev) => {
+      const idx = prev.findIndex((t) => t.id === id);
+      if (idx === -1) return prev;
+      taskUndoRef.current = { task: prev[idx], index: idx };
+      clearTimeout(taskUndoTimeout.current);
+      taskUndoTimeout.current = setTimeout(() => { taskUndoRef.current = null; }, 5000);
+      return prev.filter((t) => t.id !== id);
+    });
+    showToast("План видалено", 5000, undoDiscardTask, "Скасувати");
+  };
+  const undoDiscardTask = () => {
+    if (!taskUndoRef.current) return;
+    const { task, index } = taskUndoRef.current;
+    setTasks((prev) => { const list = [...prev]; list.splice(Math.min(index, list.length), 0, task); return list; });
+    taskUndoRef.current = null; clearTimeout(taskUndoTimeout.current);
+    setToast(null);
+  };
   const toggleDoneTask = (id) => {
     setTasks((prev) => prev.map((x) => (x.id === id ? { ...x, status: x.status === "done" ? "pending" : "done" } : x)));
-  };
-  const skipTask = (id) => {
-    setTasks((prev) => prev.map((x) => (x.id === id ? { ...x, status: "skipped" } : x)));
   };
 
   /* ---------------- braindump / capture ---------------- */
@@ -707,10 +797,7 @@ export default function AIPlanner() {
     }, stepMs);
   };
 
-  const startRecording = () => {
-    if (isRecording) return;
-    if (!supportsSpeech) { startRecordingFallbackDemo(); return; }
-
+  const beginSpeechRecognition = () => {
     const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
     const recognition = new SpeechRecognitionCtor();
     recognition.continuous = true;
@@ -767,6 +854,35 @@ export default function AIPlanner() {
       setIsRecording(false);
       showToast("Не вдалося увімкнути мікрофон — можете просто ввести текст.", 2600);
     }
+  };
+
+  const startRecording = async () => {
+    if (isRecording) return;
+    if (!supportsSpeech) { startRecordingFallbackDemo(); return; }
+
+    // Explicitly request mic permission first, rather than relying on
+    // SpeechRecognition's own implicit permission handling — that doesn't
+    // reliably trigger the browser's permission prompt on every browser/OS
+    // combo, and silently lands on a "not-allowed" error instead of ever
+    // asking. This also lets us tell an actual denial apart from "no mic
+    // present" or "mic in use by another app", instead of one generic message.
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach((t) => t.stop()); // just needed the permission check — SpeechRecognition captures its own audio
+      } catch (err) {
+        if (err && (err.name === "NotFoundError" || err.name === "DevicesNotFoundError")) {
+          showToast("Мікрофон не знайдено на цьому пристрої.", 3600);
+        } else if (err && (err.name === "NotReadableError" || err.name === "TrackStartError")) {
+          showToast("Мікрофон зайнятий іншою програмою — закрийте інші застосунки, що можуть його використовувати.", 3600);
+        } else {
+          showToast("Доступ до мікрофона заблоковано — перевірте дозволи цього сайту в браузері.", 3600);
+        }
+        return;
+      }
+    }
+
+    beginSpeechRecognition();
   };
 
   const stopRecording = () => {
@@ -829,14 +945,14 @@ export default function AIPlanner() {
 
     const newTasks = creates.map((th) => ({
       id: "p" + taskSeq.current++, text: th.text, dayOffset: th.dayOffset, time: th.time,
-      duration: th.duration || null, priority: th.priority, status: "pending",
+      duration: th.duration || null, status: "pending",
     }));
     const scheduled = newTasks.filter((p) => p.dayOffset !== null);
     const toInbox = newTasks.filter((p) => p.dayOffset === null);
 
     const updateById = {};
     updates.forEach((th) => {
-      updateById[th.taskId] = { text: th.text, dayOffset: th.dayOffset, time: th.time, duration: th.duration || null, priority: th.priority };
+      updateById[th.taskId] = { text: th.text, dayOffset: th.dayOffset, time: th.time, duration: th.duration || null };
     });
     const deleteIds = new Set(deletes.map((th) => th.taskId));
 
@@ -845,9 +961,13 @@ export default function AIPlanner() {
       .filter((t) => !deleteIds.has(t.id))
       .concat(scheduled, toInbox));
 
+    const scheduledToday = scheduled.filter((p) => p.dayOffset === 0);
+    const scheduledUpcoming = scheduled.filter((p) => p.dayOffset > 0);
+
     const msgs = [];
-    if (scheduled.length) msgs.push(`Додано ${scheduled.length} ${pluralUk(scheduled.length, "план", "плани", "планів")} до вашого дня.`);
-    if (toInbox.length) msgs.push(`${toInbox.length} ${pluralUk(toInbox.length, "думка потребує", "думки потребують", "думок потребують")} деталей — перевірте Вхідні.`);
+    if (scheduledToday.length) msgs.push(`Додано ${scheduledToday.length} ${pluralUk(scheduledToday.length, "план", "плани", "планів")} на сьогодні.`);
+    if (scheduledUpcoming.length) msgs.push(`Додано ${scheduledUpcoming.length} ${pluralUk(scheduledUpcoming.length, "план", "плани", "планів")} на найближчі дні.`);
+    if (toInbox.length) msgs.push(`${toInbox.length} ${pluralUk(toInbox.length, "думка потребує", "думки потребують", "думок потребують")} деталей — перевірте Календар.`);
     if (updates.length) msgs.push(`Оновлено ${updates.length} ${pluralUk(updates.length, "наявний план", "наявні плани", "наявних планів")}.`);
     if (deletes.length) msgs.push(`Видалено ${deletes.length} ${pluralUk(deletes.length, "план", "плани", "планів")}.`);
     setIsParsing(false); setCapturedThoughts([]); setScreen(lastTab);
@@ -865,15 +985,8 @@ export default function AIPlanner() {
   const todayRows = sortRows(todayTasks);
   const todayDoneCount = todayTasks.filter((t) => t.status === "done").length;
   const firstUntimedIdx = todayRows.findIndex((t) => !t.time);
-
-  const overdueTasks = tasks.filter((t) => t.status === "pending" && t.dayOffset !== null && t.dayOffset < 0);
-
-  const upcomingTasks = tasks.filter((t) => t.dayOffset !== null && t.dayOffset > 0);
-  const upcomingGroups = useMemo(() => {
-    const by = {};
-    upcomingTasks.forEach((t) => { (by[t.dayOffset] = by[t.dayOffset] || []).push(t); });
-    return Object.keys(by).map(Number).sort((a, b) => a - b).map((offset) => ({ offset, label: offsetToLabel(offset, today), rows: sortRows(by[offset]) }));
-  }, [tasks]); // eslint-disable-line
+  const todayPlanned = sortRows(todayTasks.filter((t) => t.status !== "done"));
+  const todayDone = sortRows(todayTasks.filter((t) => t.status === "done"));
 
   const weekDays = useMemo(() => {
     const dow = today.getDay(); // 0=Sun
@@ -881,17 +994,20 @@ export default function AIPlanner() {
     return Array.from({ length: 7 }, (_, i) => {
       const offset = mondayOffset + i;
       const d = addDays(today, offset);
+      const wd = d.toLocaleDateString("uk-UA", { weekday: "short" });
       return {
         offset, isToday: offset === 0, isPast: offset < 0,
-        weekday: d.toLocaleDateString("uk-UA", { weekday: "short" }), dayNum: d.getDate(),
+        weekday: wd.charAt(0).toUpperCase() + wd.slice(1), dayNum: d.getDate(),
         hasTasks: tasks.some((t) => t.dayOffset === offset && t.dayOffset !== null),
       };
     });
   }, [tasks]); // eslint-disable-line
 
   const selectedDayRows = upcomingDay === null ? [] : sortRows(tasks.filter((t) => t.dayOffset === upcomingDay));
+  const selectedDayPlanned = sortRows(selectedDayRows.filter((t) => t.status !== "done"));
+  const selectedDayDone = sortRows(selectedDayRows.filter((t) => t.status === "done"));
 
-  const allScheduled = tasks.filter((t) => t.dayOffset !== null && t.dayOffset >= 0);
+  const allScheduled = tasks.filter((t) => t.dayOffset !== null);
   const allGroups = useMemo(() => {
     const by = {};
     allScheduled.forEach((t) => { (by[t.dayOffset] = by[t.dayOffset] || []).push(t); });
@@ -900,218 +1016,213 @@ export default function AIPlanner() {
 
   const unscheduledTasks = tasks.filter((t) => t.dayOffset === null);
 
-  const q = inboxSearch.trim().toLowerCase();
-  const matchesQ = (t) => !q || t.text.toLowerCase().includes(q);
-  const inboxOverdue = overdueTasks.filter(matchesQ);
-  const inboxGroups = allGroups.map((g) => ({ ...g, rows: g.rows.filter((r) => matchesQ(r)) })).filter((g) => g.rows.length);
-  const inboxUnscheduled = unscheduledTasks.filter(matchesQ);
-
   const activeTab = screen === "braindump" ? lastTab : screen;
-  const tabColor = (tab) => (activeTab === tab ? COLOR.teal : COLOR.faint);
+  const tabColor = (tab) => (activeTab === tab ? COLOR.navActive : COLOR.navInactive);
 
   /* ------------------------------- render ------------------------------- */
 
   return (
-    <div style={{ background: "#eef2f7", minHeight: "100vh", display: "flex", justifyContent: "center", fontFamily: FONT }}>
+    <div className="om-app-shell" style={{ background: "#eef2f7", display: "flex", justifyContent: "center", fontFamily: FONT }}>
       <style>{`
+        html, body { overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch; }
+        .om-app-shell { min-height: 100vh; min-height: 100dvh; }
+        .om-app-inner { min-height: 100vh; min-height: 100dvh; }
         @keyframes om-fade-in { from { opacity:0; transform:translate(-50%,4px);} to { opacity:1; transform:translate(-50%,0);} }
+        @keyframes om-sheet-in { from { transform:translate(-50%,100%);} to { transform:translate(-50%,0);} }
         @keyframes om-move-in { 0%{transform:translateY(-18px) scale(.97);opacity:.4;background:#ccfbf1;box-shadow:0 8px 20px rgba(13,148,136,.25)} 55%{transform:translateY(3px) scale(1.01);background:#ccfbf1} 100%{transform:translateY(0) scale(1);opacity:1;background:transparent;box-shadow:none} }
-        .om-hide-scrollbar{scrollbar-width:none;-ms-overflow-style:none}
+        .om-hide-scrollbar{scrollbar-width:none;-ms-overflow-style:none;-webkit-overflow-scrolling:touch}
         .om-hide-scrollbar::-webkit-scrollbar{display:none}
-        .om-btn:focus-visible, .om-icon:focus-visible { outline: 2px solid #0d9488; outline-offset: 2px; }
+        .om-btn:focus-visible, .om-icon:focus-visible { outline: 2px solid #0d8390; outline-offset: 2px; }
       `}</style>
 
-      <div style={{ width: "100%", maxWidth: 430, margin: "0 auto", minHeight: "100vh", background: "#fff", position: "relative", boxShadow: "0 0 40px rgba(17,24,39,.08)", color: COLOR.ink }}>
-        <div style={{ minHeight: "100vh", paddingBottom: screen === "braindump" ? 0 : 104 }}>
+      <div className="om-app-inner" style={{ width: "100%", maxWidth: 430, margin: "0 auto", background: "#fff", position: "relative", boxShadow: "0 0 40px rgba(17,24,39,.08)", color: COLOR.ink }}>
+        <div className="om-app-inner" style={{ paddingBottom: screen === "braindump" ? 0 : "calc(104px + env(safe-area-inset-bottom, 0px))" }}>
 
           {/* ---------------- TODAY ---------------- */}
           {screen === "today" && (
-            <div style={{ padding: "28px 16px 20px 16px", background: COLOR.panel }}>
-              <div style={{ marginBottom: 24 }}>
-                <h1 style={{ fontSize: 26, fontWeight: 800, margin: 0, color: COLOR.ink }}>Сьогодні</h1>
-                <p style={{ fontSize: 16, fontWeight: 500, color: COLOR.sub, margin: "4px 0 0" }}>{todayLabel}</p>
+            <div style={{ background: COLOR.panel }}>
+              <div style={{ background: `linear-gradient(160deg, ${COLOR.teal} 0%, ${COLOR.tealDark} 100%)`, padding: "28px 16px 44px 16px" }}>
+                <h1 style={{ fontSize: 28, fontWeight: 800, margin: 0, color: "#fff" }}>Плани на сьогодні</h1>
+                <p style={{ fontSize: 16, fontWeight: 600, color: "rgba(255,255,255,.85)", margin: "6px 0 0" }}>{todayLabel}</p>
               </div>
 
-              {todayTasks.length > 0 ? (
-                <>
-                  <SectionLabel>{todayTasks.length} {pluralUk(todayTasks.length, "план", "плани", "планів")} на сьогодні · {todayDoneCount} виконано</SectionLabel>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                    {todayRows.map((t, i) => (
-                      <div key={t.id}>
-                        {i === firstUntimedIdx && <div style={{ fontSize: 11, fontWeight: 700, color: COLOR.faint, margin: "14px 0 8px" }}>Без визначеного часу</div>}
-                        <TaskRow task={t} today={today} allowDayPicker={false} justMoved={t.id === justMovedId}
-                          onSave={saveTask} onDiscard={() => discardTask(t.id)} onToggleDone={() => toggleDoneTask(t.id)} onSkip={() => skipTask(t.id)} />
+              <div style={{ background: COLOR.panel, borderTopLeftRadius: 24, borderTopRightRadius: 24, marginTop: -24, position: "relative", padding: "20px 16px 20px 16px" }}>
+                {todayTasks.length > 0 ? (
+                  <>
+                    {todayPlanned.length > 0 && (
+                      <div style={{ marginBottom: todayDone.length > 0 ? 24 : 0 }}>
+                        <SectionLabel>Заплановані {todayPlanned.length}</SectionLabel>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                          {todayPlanned.map((t) => (
+                            <TaskRow key={t.id} task={t} today={today} metaVariant="chip" justMoved={t.id === justMovedId}
+                              onSave={saveTask} onDiscard={() => discardTask(t.id)} onToggleDone={() => toggleDoneTask(t.id)} />
+                          ))}
+                        </div>
                       </div>
-                    ))}
-                  </div>
-                </>
-              ) : <EmptyState>Поки що нічого не заплановано. Натисніть +, щоб озвучити свій день.</EmptyState>}
+                    )}
 
-              {overdueTasks.length > 0 && (
-                <div style={{ marginTop: 24 }}>
-                  <SectionLabel>Прострочені плани ({overdueTasks.length})</SectionLabel>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                    {overdueTasks.map((t) => (
-                      <TaskRow key={t.id} task={t} today={today} allowDayPicker overdue
-                        onSave={saveTask} onDiscard={() => discardTask(t.id)} onToggleDone={() => toggleDoneTask(t.id)} />
-                    ))}
-                  </div>
-                </div>
-              )}
+                    {todayDone.length > 0 && (
+                      <div>
+                        <SectionLabel>Виконані {todayDone.length}</SectionLabel>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                          {todayDone.map((t) => (
+                            <TaskRow key={t.id} task={t} today={today} metaVariant="chip" justMoved={t.id === justMovedId}
+                              onSave={saveTask} onDiscard={() => discardTask(t.id)} onToggleDone={() => toggleDoneTask(t.id)} />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : <EmptyState>Поки що нічого не заплановано. Натисніть +, щоб озвучити свій день.</EmptyState>}
+              </div>
             </div>
           )}
 
-          {/* ---------------- UPCOMING ---------------- */}
-          {screen === "upcoming" && (
-            <div style={{ padding: "28px 16px 20px 16px", background: COLOR.panel }}>
-              <h1 style={{ fontSize: 26, fontWeight: 800, margin: "0 0 18px", color: COLOR.ink }}>Найближчі</h1>
-
-              <div className="om-hide-scrollbar" style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 8, marginBottom: 18 }}>
-                {weekDays.map((d) => {
-                  const sel = upcomingDay === d.offset;
-                  return (
-                    <button key={d.offset} type="button" disabled={d.isPast}
-                      onClick={() => setUpcomingDay((cur) => (cur === d.offset ? null : d.offset))}
-                      style={{
-                        flex: "none", width: 48, padding: "8px 4px", borderRadius: 14, cursor: d.isPast ? "not-allowed" : "pointer",
-                        border: sel ? `1px solid ${COLOR.teal}` : (d.isToday ? `1.5px solid ${COLOR.teal}` : `1px solid ${COLOR.line}`),
-                        background: sel ? COLOR.teal : "transparent", color: sel ? "#fff" : (d.isPast ? "#d1d5db" : COLOR.ink),
-                        opacity: d.isPast ? 0.5 : 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
-                      }}>
-                      <span style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", opacity: 0.7 }}>{d.isToday ? "Сьогодні" : d.weekday}</span>
-                      <span style={{ fontSize: 15, fontWeight: 700 }}>{d.dayNum}</span>
-                      {d.hasTasks && <span style={{ width: 4, height: 4, borderRadius: "50%", background: sel ? "#fff" : COLOR.teal }} />}
-                    </button>
-                  );
-                })}
+          {/* ---------------- CALENDAR ---------------- */}
+          {screen === "calendar" && (
+            <div style={{ background: COLOR.panel }}>
+              <div style={{ background: `linear-gradient(160deg, ${COLOR.teal} 0%, ${COLOR.tealDark} 100%)`, padding: "28px 16px 20px 16px" }}>
+                <h1 style={{ fontSize: 28, fontWeight: 800, margin: "0 0 16px", color: "#fff" }}>Календар</h1>
+                <div className="om-hide-scrollbar" style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4 }}>
+                  {weekDays.map((d) => {
+                    const sel = upcomingDay === d.offset;
+                    return (
+                      <button key={d.offset} type="button" disabled={d.isPast}
+                        onClick={() => setUpcomingDay((cur) => (cur === d.offset ? null : d.offset))}
+                        style={{
+                          flex: "none", width: 48, height: 72, borderRadius: 999,
+                          border: d.isToday ? "2px solid #fff" : "none",
+                          boxSizing: "border-box",
+                          cursor: d.isPast ? "not-allowed" : "pointer",
+                          background: sel ? COLOR.tealInk : "transparent",
+                          color: sel ? "#b9f2f8" : "#fff",
+                          opacity: d.isPast ? 0.4 : 1,
+                          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4,
+                        }}>
+                        <span style={{ fontSize: 12, fontWeight: 600 }}>{d.weekday}</span>
+                        <span style={{ fontSize: 16, fontWeight: 600 }}>{d.dayNum}</span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
-              {upcomingDay === null ? (
-                upcomingGroups.length > 0 ? upcomingGroups.map((grp) => (
-                  <div key={grp.offset} style={{ marginBottom: 24 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10, color: COLOR.ink }}>{grp.label}</div>
+              <div style={{ background: COLOR.panel, borderTopLeftRadius: 24, borderTopRightRadius: 24, marginTop: -16, position: "relative", padding: "20px 16px 20px 16px" }}>
+                {upcomingDay === null && unscheduledTasks.length > 0 && (
+                  <div style={{ marginBottom: 24 }}>
+                    <SectionLabel>Потребує дати ({unscheduledTasks.length})</SectionLabel>
                     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                      {grp.rows.map((t) => (
-                        <TaskRow key={t.id} task={t} today={today} allowDayPicker={false} justMoved={t.id === justMovedId}
-                          onSave={saveTask} onDiscard={() => discardTask(t.id)} onToggleDone={() => toggleDoneTask(t.id)} />
+                      {unscheduledTasks.map((t) => (
+                        <TaskRow key={t.id} task={t} today={today} metaVariant="chip" onSave={saveTask} onDiscard={() => discardTask(t.id)} onToggleDone={() => toggleDoneTask(t.id)} />
                       ))}
                     </div>
                   </div>
-                )) : <EmptyState>Поки немає найближчих планів.</EmptyState>
-              ) : (
-                selectedDayRows.length > 0 ? (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                    {selectedDayRows.map((t) => (
-                      <TaskRow key={t.id} task={t} today={today} allowDayPicker={false} justMoved={t.id === justMovedId}
-                        onSave={saveTask} onDiscard={() => discardTask(t.id)} onToggleDone={() => toggleDoneTask(t.id)} />
-                    ))}
-                  </div>
-                ) : <EmptyState>На цей день нічого не заплановано.</EmptyState>
-              )}
-            </div>
-          )}
+                )}
 
-          {/* ---------------- INBOX ---------------- */}
-          {screen === "inbox" && (
-            <div style={{ padding: "28px 16px 20px 16px", background: COLOR.panel }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
-                <h1 style={{ fontSize: 26, fontWeight: 800, margin: 0, color: COLOR.ink }}>Вхідні</h1>
-                <button type="button" aria-label="Пошук" onClick={() => setShowInboxSearch((s) => !s)} style={{ border: "none", background: "none", color: COLOR.sub, cursor: "pointer", padding: 6, borderRadius: 10 }}>
-                  <Search size={18} />
-                </button>
+                {upcomingDay === null ? (
+                  allGroups.length > 0 ? allGroups.map((grp) => (
+                    <div key={grp.offset} style={{ marginBottom: 24 }}>
+                      <SectionLabel>{grp.label}</SectionLabel>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                        {grp.rows.map((t) => (
+                          <TaskRow key={t.id} task={t} today={today} metaVariant="chip" justMoved={t.id === justMovedId}
+                            onSave={saveTask} onDiscard={() => discardTask(t.id)} onToggleDone={() => toggleDoneTask(t.id)} />
+                        ))}
+                      </div>
+                    </div>
+                  )) : (unscheduledTasks.length === 0 && <EmptyState>Тут поки що порожньо.</EmptyState>)
+                ) : (
+                  selectedDayRows.length > 0 ? (
+                    <>
+                      {selectedDayPlanned.length > 0 && (
+                        <div style={{ marginBottom: selectedDayDone.length > 0 ? 24 : 0 }}>
+                          <SectionLabel>Заплановані {selectedDayPlanned.length}</SectionLabel>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                            {selectedDayPlanned.map((t) => (
+                              <TaskRow key={t.id} task={t} today={today} metaVariant="chip" justMoved={t.id === justMovedId}
+                                onSave={saveTask} onDiscard={() => discardTask(t.id)} onToggleDone={() => toggleDoneTask(t.id)} />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {selectedDayDone.length > 0 && (
+                        <div>
+                          <SectionLabel>Виконані {selectedDayDone.length}</SectionLabel>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                            {selectedDayDone.map((t) => (
+                              <TaskRow key={t.id} task={t} today={today} metaVariant="chip" justMoved={t.id === justMovedId}
+                                onSave={saveTask} onDiscard={() => discardTask(t.id)} onToggleDone={() => toggleDoneTask(t.id)} />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  ) : <EmptyState>На цей день нічого не заплановано.</EmptyState>
+                )}
               </div>
-
-              {showInboxSearch && (
-                <div style={{ position: "relative", marginBottom: 20 }}>
-                  <Search size={15} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: COLOR.faint }} />
-                  <input value={inboxSearch} onChange={(e) => setInboxSearch(e.target.value)} placeholder="Пошук серед планів" autoFocus
-                    style={{ width: "100%", padding: "10px 14px 10px 38px", fontSize: 13, border: `1px solid ${COLOR.line}`, borderRadius: 12, boxSizing: "border-box" }} />
-                </div>
-              )}
-
-              {inboxOverdue.length > 0 && (
-                <div style={{ marginBottom: 24 }}>
-                  <SectionLabel>Прострочені плани ({inboxOverdue.length})</SectionLabel>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                    {inboxOverdue.map((t) => (
-                      <TaskRow key={t.id} task={t} today={today} allowDayPicker overdue onSave={saveTask} onDiscard={() => discardTask(t.id)} onToggleDone={() => toggleDoneTask(t.id)} />
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {inboxUnscheduled.length > 0 && (
-                <div style={{ marginBottom: 24 }}>
-                  <SectionLabel>Потребує дати ({inboxUnscheduled.length})</SectionLabel>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                    {inboxUnscheduled.map((t) => (
-                      <TaskRow key={t.id} task={t} today={today} allowDayPicker onSave={saveTask} onDiscard={() => discardTask(t.id)} onToggleDone={() => toggleDoneTask(t.id)} />
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {inboxGroups.length > 0 ? inboxGroups.map((grp) => (
-                <div key={grp.offset} style={{ marginBottom: 24 }}>
-                  <SectionLabel>{grp.label}</SectionLabel>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                    {grp.rows.map((t) => (
-                      <TaskRow key={t.id} task={t} today={today} allowDayPicker={false} justMoved={t.id === justMovedId}
-                        onSave={saveTask} onDiscard={() => discardTask(t.id)} onToggleDone={() => toggleDoneTask(t.id)} />
-                    ))}
-                  </div>
-                </div>
-              )) : (inboxOverdue.length === 0 && inboxUnscheduled.length === 0 && <EmptyState>{q ? "Немає планів, що відповідають пошуку." : "Тут поки що порожньо."}</EmptyState>)}
             </div>
           )}
 
           {/* ---------------- MORE ---------------- */}
           {screen === "more" && (
-            <div style={{ padding: "24px 20px 20px 20px", background: COLOR.panel, textAlign: "center" }}>
-              <h1 style={{ fontSize: 24, fontWeight: 800, margin: "0 0 24px", color: COLOR.ink, textAlign: "left" }}>Ще</h1>
-              <div style={{ width: 112, height: 112, borderRadius: "50%", margin: "0 auto 14px", background: `linear-gradient(135deg, ${COLOR.tealLight}, ${COLOR.teal})`, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 8px 20px rgba(13,148,136,.25)" }}>
-                <span style={{ fontSize: 38, fontWeight: 700, color: "#fff" }}>АР</span>
+            <div style={{ background: COLOR.panel }}>
+              <div style={{ background: "linear-gradient(180deg, #51aa3a 0%, #265f18 100%)", padding: "28px 16px 20px 16px" }}>
+                <h1 style={{ fontSize: 28, fontWeight: 800, margin: 0, color: "#fff" }}>Інше</h1>
               </div>
-              <div style={{ fontSize: 22, fontWeight: 800, color: COLOR.ink }}>Алекс Рівера</div>
-              <div style={{ fontSize: 14, color: COLOR.sub, marginBottom: 28 }}>США — Сан-Франциско</div>
 
-              <div style={{ display: "flex", flexDirection: "column", gap: 14, textAlign: "left" }}>
-                <button type="button" onClick={() => showToast("Дякуємо — відгук збережено.")} style={moreBtn}><Mail size={20} /> Залишити відгук</button>
-                <div style={{ background: "#dbeafe", borderRadius: 18, padding: "6px 18px" }}>
-                  {[
-                    { icon: <FileText size={20} />, label: "Правила використання" },
-                    { icon: <Bell size={20} />, label: "Сповіщення" },
-                    { icon: <Shield size={20} />, label: "Політика конфіденційності" },
-                    { icon: <FileText size={20} />, label: "Умови використання" },
-                  ].map((row, i, arr) => (
-                    <div key={row.label} onClick={() => showToast(row.label + " — скоро з'явиться.")} style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 0", borderBottom: i < arr.length - 1 ? "1px solid rgba(30,58,95,.1)" : "none", fontSize: 15, color: "#1e3a5f", fontWeight: 600, cursor: "pointer" }}>
-                      {row.icon}{row.label}
-                    </div>
-                  ))}
+              <div style={{ background: COLOR.panel, borderTopLeftRadius: 24, borderTopRightRadius: 24, marginTop: -16, position: "relative", padding: "20px 16px 24px 16px", textAlign: "center" }}>
+                <div style={{ width: 112, height: 112, borderRadius: "50%", margin: "16px auto 14px", background: "#cdf9c2", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <span style={{ fontSize: 32, fontWeight: 700, color: "#0d2f04" }}>АР</span>
                 </div>
-                <button type="button" onClick={() => showToast("Кольорова схема: системна")} style={{ ...moreBtn, justifyContent: "space-between" }}>
-                  <span style={{ display: "flex", alignItems: "center", gap: 14 }}><Palette size={20} />Кольорова схема</span>
-                  <span style={{ color: COLOR.sub, fontWeight: 600 }}>Системна</span>
+                <div style={{ fontSize: 20, fontWeight: 600, color: COLOR.ink }}>Алекс Рівера</div>
+                <div style={{ fontSize: 14, color: COLOR.sub, marginBottom: 28 }}>Україна</div>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: 16, textAlign: "left" }}>
+                  <div style={{ background: "#fff", borderRadius: 20, boxShadow: "0 2px 4px rgba(0,0,0,.08)", padding: 8 }}>
+                    <button type="button" onClick={() => showToast("Дякуємо — відгук збережено.")} style={moreRow}>
+                      <Mail size={20} /> Залишити відгук
+                    </button>
+                  </div>
+
+                  <div style={{ background: "#fff", borderRadius: 20, boxShadow: "0 2px 4px rgba(0,0,0,.08)", padding: 8 }}>
+                    {[
+                      { icon: <Bell size={20} />, label: "Сповіщення" },
+                      { icon: <Shield size={20} />, label: "Політика конфіденційності" },
+                      { icon: <Cookie size={20} />, label: "Cookies" },
+                      { icon: <FileText size={20} />, label: "Правила використання" },
+                    ].map((row, i, arr) => (
+                      <button key={row.label} type="button" onClick={() => showToast(row.label + " — скоро з'явиться.")}
+                        style={{ ...moreRow, borderBottom: i < arr.length - 1 ? `1px solid ${COLOR.line}` : "none", borderRadius: 0 }}>
+                        {row.icon} {row.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div style={{ background: "#fff", borderRadius: 20, boxShadow: "0 2px 4px rgba(0,0,0,.08)", padding: 8 }}>
+                    <button type="button" onClick={() => showToast("Ви вийшли (демо).")} style={{ ...moreRow, color: COLOR.error }}>
+                      <LogOut size={20} /> Вийти
+                    </button>
+                  </div>
+                </div>
+
+                <button type="button" onClick={() => { setTasks(seedTasks()); showToast("Дані скинуто до демо-версії."); }} style={{ border: "none", background: "none", color: COLOR.faint, fontSize: 12, textDecoration: "underline", cursor: "pointer", marginTop: 24, padding: 0 }}>
+                  Скинути демо-дані
                 </button>
-                <button type="button" onClick={() => showToast("Ви вийшли (демо).")} style={{ ...moreBtn, color: "#dc2626" }}><LogOut size={20} /> Вийти</button>
+                <p style={{ fontSize: 12, color: COLOR.sub, fontWeight: 600, marginTop: 12 }}>Version 1.0.0</p>
               </div>
-              <button type="button" onClick={() => { setTasks(seedTasks()); showToast("Дані скинуто до демо-версії."); }} style={{ border: "none", background: "none", color: COLOR.faint, fontSize: 12, textDecoration: "underline", cursor: "pointer", marginTop: 28, padding: 0 }}>
-                Скинути демо-дані
-              </button>
-              <p style={{ fontSize: 12, color: COLOR.faint, marginTop: 10 }}>Версія 1.0.0</p>
             </div>
           )}
 
           {/* ---------------- BRAINDUMP ---------------- */}
           {screen === "braindump" && (
-            <div style={{ minHeight: "100vh", padding: "28px 16px 200px 16px", background: "linear-gradient(180deg, #dbeafe 0%, #eff6ff 35%, #e0edfc 65%, #bfdbfe 100%)" }}>
+            <div style={{ minHeight: "100vh", padding: "28px 16px 200px 16px", background: "linear-gradient(187deg, #f1f7fc 22%, #f3f4ff 44%, #eff2fd 59%, #bdd1f1 87%)" }}>
               <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 14 }}>
-                <button type="button" aria-label="Закрити" onClick={requestCloseBraindump} style={{ border: "none", background: "rgba(255,255,255,.6)", color: "#374151", cursor: "pointer", padding: 0, width: 34, height: 34, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <X size={16} />
+                <button type="button" aria-label="Закрити" onClick={requestCloseBraindump} style={{ border: "none", background: "rgba(255,255,255,.8)", color: COLOR.ink, cursor: "pointer", padding: 0, width: 48, height: 48, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <X size={20} />
                 </button>
               </div>
-              <p style={{ fontSize: 15, color: COLOR.teal, margin: "0 0 4px", fontWeight: 700 }}>Привіт, Алекс 👋</p>
-              <h1 style={{ fontSize: 27, fontWeight: 800, lineHeight: 1.2, margin: "0 0 24px", color: COLOR.ink }}>Які у вас плани на сьогодні?</h1>
+              <p style={{ fontSize: 16, color: COLOR.teal, margin: "0 0 4px", fontWeight: 600, letterSpacing: ".15px" }}>Привіт, Алекс 👋</p>
+              <h1 style={{ fontSize: 32, fontWeight: 650, lineHeight: "40px", margin: "0 0 24px", color: COLOR.tealInk }}>Які у вас плани на сьогодні?</h1>
 
               {capturedThoughts.length > 0 && (
                 <div>
@@ -1129,21 +1240,21 @@ export default function AIPlanner() {
 
         {/* fixed input panel — braindump only */}
         {screen === "braindump" && (
-          <div style={{ position: "fixed", left: "50%", transform: "translateX(-50%)", bottom: 0, width: "100%", maxWidth: 430, background: "#fff", borderTop: "1px solid #f1f3f5", padding: 16, display: "flex", flexDirection: "column", gap: 12, zIndex: 7 }}>
-            <div style={{ position: "relative", background: "#f3f4f6", borderRadius: 16, padding: "12px 50px 12px 14px" }}>
+          <div style={{ position: "fixed", left: "50%", transform: "translateX(-50%)", bottom: 0, width: "100%", maxWidth: 430, background: "#fff", border: "1px solid #dbdee1", borderBottom: "none", borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: "16px 16px calc(16px + env(safe-area-inset-bottom, 0px)) 16px", display: "flex", flexDirection: "column", gap: 12, zIndex: 7, boxSizing: "border-box" }}>
+            <div style={{ position: "relative", display: "flex", alignItems: "center", gap: 8 }}>
               <textarea
                 readOnly={isRecording}
                 className="om-hide-scrollbar"
-                style={{ width: "100%", border: "none", background: "transparent", padding: 0, resize: "none", fontSize: 14, fontFamily: "inherit", height: 56, overflowY: "auto", boxSizing: "border-box", color: COLOR.ink }}
-                placeholder="Введіть план або натисніть на мікрофон, щоб сказати…"
+                style={{ flex: 1, border: "none", background: "transparent", padding: 0, resize: "none", fontSize: 16, fontFamily: "inherit", height: 56, overflowY: "auto", boxSizing: "border-box", color: COLOR.ink }}
+                placeholder="Надрукуйте або запишіть голосом ваші плани…"
                 value={textDraft}
                 maxLength={MAX_DRAFT_CHARS}
                 onChange={(e) => setDraft(e.target.value.slice(0, MAX_DRAFT_CHARS))}
                 onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendDraft(); } }}
               />
               <button type="button" aria-label={isRecording ? "Зупинити" : "Записати"} onClick={inputBtnAction}
-                style={{ position: "absolute", right: 10, bottom: 10, width: 34, height: 34, borderRadius: "50%", border: "none", background: isRecording ? "#dc2626" : COLOR.teal, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0 }}>
-                {isRecording ? <Square size={13} /> : (textDraft.trim() !== committedText.trim() ? <Send size={15} /> : <Mic size={15} />)}
+                style={{ flex: "none", width: 48, height: 48, borderRadius: "50%", border: "none", background: isRecording ? "#dc2626" : COLOR.teal, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0 }}>
+                {isRecording ? <Square size={16} /> : (textDraft.trim() !== committedText.trim() ? <Send size={18} /> : <Mic size={18} />)}
               </button>
             </div>
             {isRecording && <p style={{ fontSize: 12, color: COLOR.faint, margin: "-4px 0 0", textAlign: "center" }}>Слухаю…</p>}
@@ -1153,7 +1264,7 @@ export default function AIPlanner() {
             {!isRecording && isCapturing && <p style={{ fontSize: 12, color: COLOR.faint, margin: "-4px 0 0", textAlign: "center" }}>Опрацьовую ваш план…</p>}
             {capturedThoughts.length > 0 && (
               <button type="button" disabled={isParsing || isCapturing} onClick={structureDay}
-                style={{ width: "100%", padding: "13px 0", border: "none", borderRadius: 14, background: COLOR.teal, color: "#fff", fontSize: 15, fontWeight: 700, cursor: (isParsing || isCapturing) ? "default" : "pointer", opacity: (isParsing || isCapturing) ? 0.85 : 1 }}>
+                style={{ width: "100%", padding: "13px 0", border: "none", borderRadius: 999, background: COLOR.teal, color: "#fff", fontSize: 15, fontWeight: 700, cursor: (isParsing || isCapturing) ? "default" : "pointer", opacity: (isParsing || isCapturing) ? 0.85 : 1 }}>
                 {isParsing ? "Формую ваш день…" : "Прийняти плани"}
               </button>
             )}
@@ -1163,23 +1274,29 @@ export default function AIPlanner() {
         {/* bottom nav + FAB */}
         {screen !== "braindump" && (
           <>
-            <nav style={{ position: "fixed", left: "50%", transform: "translateX(-50%)", bottom: 0, width: "100%", maxWidth: 430, background: "#fff", borderTop: "1px solid #f1f3f5", display: "flex", alignItems: "stretch", height: 64, zIndex: 5 }}>
+            <nav style={{ position: "fixed", left: "50%", transform: "translateX(-50%)", bottom: 0, width: "100%", maxWidth: 430, background: COLOR.navBg, display: "flex", alignItems: "stretch", height: "calc(64px + env(safe-area-inset-bottom, 0px))", paddingBottom: "env(safe-area-inset-bottom, 0px)", boxSizing: "border-box", zIndex: 5 }}>
               {[
-                { tab: "today", icon: <Calendar size={20} />, label: "Сьогодні", go: () => goTab("today") },
-                { tab: "upcoming", icon: <ChevronRight size={20} style={{ transform: "rotate(0deg)" }} />, label: "Найближчі", go: () => goTab("upcoming") },
-                { tab: "inbox", icon: <InboxIcon size={20} />, label: "Вхідні", go: () => goTab("inbox") },
-                { tab: "more", icon: <MoreHorizontal size={20} />, label: "Ще", go: () => goTab("more") },
-              ].map((item) => (
-                <button key={item.tab} type="button" onClick={item.go} style={{ flex: 1, background: "none", border: "none", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2, cursor: "pointer", color: tabColor(item.tab) }}>
-                  {item.icon}
-                  <span style={{ fontSize: 10, fontWeight: 600 }}>{item.label}</span>
-                </button>
-              ))}
+                { tab: "today", icon: <Home size={20} />, label: "Сьогодні", go: () => goTab("today") },
+                { tab: "calendar", icon: <Calendar size={20} />, label: "Календар", go: () => goTab("calendar") },
+                { tab: "more", icon: <Settings size={20} />, label: "Інше", go: () => goTab("more") },
+              ].map((item) => {
+                const active = activeTab === item.tab;
+                return (
+                  <button key={item.tab} type="button" onClick={item.go} style={{ flex: 1, background: "none", border: "none", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2, cursor: "pointer", color: tabColor(item.tab) }}>
+                    <span style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 32, height: 32, borderRadius: 999, background: active ? COLOR.navPill : "transparent" }}>
+                      {item.icon}
+                    </span>
+                    <span style={{ fontSize: 10, fontWeight: 600 }}>{item.label}</span>
+                  </button>
+                );
+              })}
             </nav>
-            <button type="button" aria-label="Новий план" onClick={openBraindump}
-              style={{ position: "fixed", left: "50%", transform: "translateX(-50%)", bottom: 42, width: 56, height: 56, borderRadius: "50%", background: `linear-gradient(135deg, ${COLOR.tealLight}, ${COLOR.teal})`, color: "#fff", border: "none", boxShadow: "0 8px 20px rgba(13,148,136,.4)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", zIndex: 6, padding: 0 }}>
-              <Plus size={22} />
-            </button>
+            <div style={{ position: "fixed", left: "50%", transform: "translateX(-50%)", bottom: "calc(64px + env(safe-area-inset-bottom, 0px) + 20px)", width: "100%", maxWidth: 430, pointerEvents: "none", zIndex: 6 }}>
+              <button type="button" aria-label="Новий план" onClick={openBraindump}
+                style={{ position: "absolute", right: 16, bottom: 0, width: 56, height: 56, borderRadius: "50%", background: `linear-gradient(135deg, ${COLOR.tealLight}, ${COLOR.teal})`, color: "#fff", border: "none", boxShadow: "0 8px 20px rgba(13,148,136,.4)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", pointerEvents: "auto", padding: 0 }}>
+                <Plus size={22} />
+              </button>
+            </div>
           </>
         )}
 
@@ -1199,9 +1316,9 @@ export default function AIPlanner() {
 
         {/* toast */}
         {toast && (
-          <div style={{ position: "fixed", left: "50%", bottom: 130, transform: "translateX(-50%)", background: "#111827", color: "#fff", padding: "10px 14px 10px 18px", borderRadius: 14, fontSize: 13, boxShadow: "0 8px 24px rgba(17,24,39,.3)", zIndex: 10, maxWidth: 340, textAlign: "center", animation: "om-fade-in .2s ease", display: "flex", alignItems: "center", gap: 12 }}>
-            <span>{toast}</span>
-            {toastAction && <button type="button" onClick={toastAction} style={{ background: "none", border: "none", color: "#5eead4", fontWeight: 700, fontSize: 13, cursor: "pointer", padding: "2px 4px", flex: "none" }}>{toastActionLabel}</button>}
+          <div style={{ position: "fixed", left: "50%", bottom: "calc(64px + env(safe-area-inset-bottom, 0px) + 48px)", transform: "translateX(-50%)", width: "calc(100% - 32px)", maxWidth: 398, background: COLOR.tealInk, color: "#fff", padding: "14px 16px", borderRadius: 12, fontSize: 14, boxShadow: "0 4px 4px rgba(0,0,0,.15), 0 1px 1.5px rgba(0,0,0,.3)", zIndex: 10, textAlign: "left", animation: "om-fade-in .2s ease", display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ flex: 1 }}>{toast}</span>
+            {toastAction && <button type="button" onClick={toastAction} style={{ background: "none", border: "none", color: "#b9f2f8", fontWeight: 600, fontSize: 14, cursor: "pointer", padding: "2px 4px", flex: "none" }}>{toastActionLabel}</button>}
           </div>
         )}
       </div>
@@ -1209,4 +1326,4 @@ export default function AIPlanner() {
   );
 }
 
-const moreBtn = { display: "flex", alignItems: "center", gap: 14, background: "#dbeafe", border: "none", borderRadius: 18, padding: "16px 18px", cursor: "pointer", fontSize: 15, color: "#1e3a5f", fontWeight: 600 };
+const moreRow = { display: "flex", alignItems: "center", gap: 16, width: "100%", background: "none", border: "none", borderRadius: 14, padding: "12px 16px", cursor: "pointer", fontSize: 16, color: "#464d53", fontWeight: 600, fontFamily: "inherit", textAlign: "left" };
