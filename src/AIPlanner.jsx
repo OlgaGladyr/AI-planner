@@ -1040,7 +1040,7 @@ export default function AIPlanner() {
       `}</style>
 
       <div className="om-app-inner" style={{ width: "100%", maxWidth: 430, margin: "0 auto", background: "#fff", position: "relative", boxShadow: "0 0 40px rgba(17,24,39,.08)", color: COLOR.ink }}>
-        <div className="om-app-inner" style={{ paddingBottom: screen === "braindump" ? 0 : "calc(104px + env(safe-area-inset-bottom, 0px))" }}>
+        <div className="om-app-inner">
 
           {/* ---------------- TODAY ---------------- */}
           {screen === "today" && (
@@ -1050,7 +1050,7 @@ export default function AIPlanner() {
                 <p style={{ fontSize: 16, fontWeight: 600, color: "rgba(255,255,255,.85)", margin: "6px 0 0" }}>{todayLabel}</p>
               </div>
 
-              <div style={{ background: COLOR.panel, borderTopLeftRadius: 24, borderTopRightRadius: 24, marginTop: -24, position: "relative", padding: "20px 16px 20px 16px", flex: "1 0 auto" }}>
+              <div style={{ background: COLOR.panel, borderTopLeftRadius: 24, borderTopRightRadius: 24, marginTop: -24, position: "relative", padding: "20px 16px calc(20px + 104px + env(safe-area-inset-bottom, 0px)) 16px", flex: "1 0 auto", boxSizing: "border-box" }}>
                 {todayTasks.length > 0 ? (
                   <>
                     {todayPlanned.length > 0 && (
@@ -1111,7 +1111,7 @@ export default function AIPlanner() {
                 </div>
               </div>
 
-              <div style={{ background: COLOR.panel, borderTopLeftRadius: 24, borderTopRightRadius: 24, marginTop: -16, position: "relative", padding: "20px 16px 20px 16px", flex: "1 0 auto" }}>
+              <div style={{ background: COLOR.panel, borderTopLeftRadius: 24, borderTopRightRadius: 24, marginTop: -16, position: "relative", padding: "20px 16px calc(20px + 104px + env(safe-area-inset-bottom, 0px)) 16px", flex: "1 0 auto", boxSizing: "border-box" }}>
                 {upcomingDay === null && unscheduledTasks.length > 0 && (
                   <div style={{ marginBottom: 24 }}>
                     <SectionLabel>Потребує дати ({unscheduledTasks.length})</SectionLabel>
@@ -1174,7 +1174,7 @@ export default function AIPlanner() {
                 <h1 style={{ fontSize: 28, fontWeight: 800, margin: 0, color: "#fff" }}>Інше</h1>
               </div>
 
-              <div style={{ background: COLOR.panel, borderTopLeftRadius: 24, borderTopRightRadius: 24, marginTop: -16, position: "relative", padding: "20px 16px 24px 16px", textAlign: "center", flex: "1 0 auto" }}>
+              <div style={{ background: COLOR.panel, borderTopLeftRadius: 24, borderTopRightRadius: 24, marginTop: -16, position: "relative", padding: "20px 16px calc(24px + 104px + env(safe-area-inset-bottom, 0px)) 16px", textAlign: "center", flex: "1 0 auto", boxSizing: "border-box" }}>
                 <div style={{ width: 112, height: 112, borderRadius: "50%", margin: "16px auto 14px", background: "#cdf9c2", display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <span style={{ fontSize: 32, fontWeight: 700, color: "#0d2f04" }}>АР</span>
                 </div>
