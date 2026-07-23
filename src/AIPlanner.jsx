@@ -1045,7 +1045,7 @@ export default function AIPlanner() {
           {/* ---------------- TODAY ---------------- */}
           {screen === "today" && (
             <div className="om-screen-fill" style={{ background: COLOR.panel }}>
-              <div style={{ background: `linear-gradient(160deg, ${COLOR.teal} 0%, ${COLOR.tealDark} 100%)`, padding: "28px 16px 44px 16px", flex: "none" }}>
+              <div style={{ background: "linear-gradient(180deg, #007cb0 0%, #00618a 100%)", padding: "28px 16px 44px 16px", flex: "none" }}>
                 <h1 style={{ fontSize: 28, fontWeight: 800, margin: 0, color: "#fff" }}>Плани на сьогодні</h1>
                 <p style={{ fontSize: 16, fontWeight: 600, color: "rgba(255,255,255,.85)", margin: "6px 0 0" }}>{todayLabel}</p>
               </div>
