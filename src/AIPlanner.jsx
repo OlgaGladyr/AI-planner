@@ -961,9 +961,13 @@ export default function AIPlanner() {
       .filter((t) => !deleteIds.has(t.id))
       .concat(scheduled, toInbox));
 
+    const scheduledToday = scheduled.filter((p) => p.dayOffset === 0);
+    const scheduledUpcoming = scheduled.filter((p) => p.dayOffset > 0);
+
     const msgs = [];
-    if (scheduled.length) msgs.push(`Додано ${scheduled.length} ${pluralUk(scheduled.length, "план", "плани", "планів")} до вашого дня.`);
-    if (toInbox.length) msgs.push(`${toInbox.length} ${pluralUk(toInbox.length, "думка потребує", "думки потребують", "думок потребують")} деталей — перевірте Вхідні.`);
+    if (scheduledToday.length) msgs.push(`Додано ${scheduledToday.length} ${pluralUk(scheduledToday.length, "план", "плани", "планів")} на сьогодні.`);
+    if (scheduledUpcoming.length) msgs.push(`Додано ${scheduledUpcoming.length} ${pluralUk(scheduledUpcoming.length, "план", "плани", "планів")} на найближчі дні.`);
+    if (toInbox.length) msgs.push(`${toInbox.length} ${pluralUk(toInbox.length, "думка потребує", "думки потребують", "думок потребують")} деталей — перевірте Календар.`);
     if (updates.length) msgs.push(`Оновлено ${updates.length} ${pluralUk(updates.length, "наявний план", "наявні плани", "наявних планів")}.`);
     if (deletes.length) msgs.push(`Видалено ${deletes.length} ${pluralUk(deletes.length, "план", "плани", "планів")}.`);
     setIsParsing(false); setCapturedThoughts([]); setScreen(lastTab);
@@ -1018,18 +1022,21 @@ export default function AIPlanner() {
   /* ------------------------------- render ------------------------------- */
 
   return (
-    <div style={{ background: "#eef2f7", minHeight: "100vh", display: "flex", justifyContent: "center", fontFamily: FONT }}>
+    <div className="om-app-shell" style={{ background: "#eef2f7", display: "flex", justifyContent: "center", fontFamily: FONT }}>
       <style>{`
+        html, body { overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch; }
+        .om-app-shell { min-height: 100vh; min-height: 100dvh; }
+        .om-app-inner { min-height: 100vh; min-height: 100dvh; }
         @keyframes om-fade-in { from { opacity:0; transform:translate(-50%,4px);} to { opacity:1; transform:translate(-50%,0);} }
         @keyframes om-sheet-in { from { transform:translate(-50%,100%);} to { transform:translate(-50%,0);} }
         @keyframes om-move-in { 0%{transform:translateY(-18px) scale(.97);opacity:.4;background:#ccfbf1;box-shadow:0 8px 20px rgba(13,148,136,.25)} 55%{transform:translateY(3px) scale(1.01);background:#ccfbf1} 100%{transform:translateY(0) scale(1);opacity:1;background:transparent;box-shadow:none} }
-        .om-hide-scrollbar{scrollbar-width:none;-ms-overflow-style:none}
+        .om-hide-scrollbar{scrollbar-width:none;-ms-overflow-style:none;-webkit-overflow-scrolling:touch}
         .om-hide-scrollbar::-webkit-scrollbar{display:none}
         .om-btn:focus-visible, .om-icon:focus-visible { outline: 2px solid #0d8390; outline-offset: 2px; }
       `}</style>
 
-      <div style={{ width: "100%", maxWidth: 430, margin: "0 auto", minHeight: "100vh", background: "#fff", position: "relative", boxShadow: "0 0 40px rgba(17,24,39,.08)", color: COLOR.ink }}>
-        <div style={{ minHeight: "100vh", paddingBottom: screen === "braindump" ? 0 : 104 }}>
+      <div className="om-app-inner" style={{ width: "100%", maxWidth: 430, margin: "0 auto", background: "#fff", position: "relative", boxShadow: "0 0 40px rgba(17,24,39,.08)", color: COLOR.ink }}>
+        <div className="om-app-inner" style={{ paddingBottom: screen === "braindump" ? 0 : "calc(104px + env(safe-area-inset-bottom, 0px))" }}>
 
           {/* ---------------- TODAY ---------------- */}
           {screen === "today" && (
@@ -1233,13 +1240,13 @@ export default function AIPlanner() {
 
         {/* fixed input panel — braindump only */}
         {screen === "braindump" && (
-          <div style={{ position: "fixed", left: "50%", transform: "translateX(-50%)", bottom: 0, width: "100%", maxWidth: 430, background: "#fff", border: "1px solid #dbdee1", borderBottom: "none", borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 16, display: "flex", flexDirection: "column", gap: 12, zIndex: 7, boxSizing: "border-box" }}>
+          <div style={{ position: "fixed", left: "50%", transform: "translateX(-50%)", bottom: 0, width: "100%", maxWidth: 430, background: "#fff", border: "1px solid #dbdee1", borderBottom: "none", borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: "16px 16px calc(16px + env(safe-area-inset-bottom, 0px)) 16px", display: "flex", flexDirection: "column", gap: 12, zIndex: 7, boxSizing: "border-box" }}>
             <div style={{ position: "relative", display: "flex", alignItems: "center", gap: 8 }}>
               <textarea
                 readOnly={isRecording}
                 className="om-hide-scrollbar"
                 style={{ flex: 1, border: "none", background: "transparent", padding: 0, resize: "none", fontSize: 16, fontFamily: "inherit", height: 56, overflowY: "auto", boxSizing: "border-box", color: COLOR.ink }}
-                placeholder="Введіть план або натисніть на мікрофон, щоб сказати…"
+                placeholder="Надрукуйте або запишіть голосом ваші плани…"
                 value={textDraft}
                 maxLength={MAX_DRAFT_CHARS}
                 onChange={(e) => setDraft(e.target.value.slice(0, MAX_DRAFT_CHARS))}
@@ -1267,7 +1274,7 @@ export default function AIPlanner() {
         {/* bottom nav + FAB */}
         {screen !== "braindump" && (
           <>
-            <nav style={{ position: "fixed", left: "50%", transform: "translateX(-50%)", bottom: 0, width: "100%", maxWidth: 430, background: COLOR.navBg, display: "flex", alignItems: "stretch", height: 64, zIndex: 5 }}>
+            <nav style={{ position: "fixed", left: "50%", transform: "translateX(-50%)", bottom: 0, width: "100%", maxWidth: 430, background: COLOR.navBg, display: "flex", alignItems: "stretch", height: "calc(64px + env(safe-area-inset-bottom, 0px))", paddingBottom: "env(safe-area-inset-bottom, 0px)", boxSizing: "border-box", zIndex: 5 }}>
               {[
                 { tab: "today", icon: <Home size={20} />, label: "Сьогодні", go: () => goTab("today") },
                 { tab: "calendar", icon: <Calendar size={20} />, label: "Календар", go: () => goTab("calendar") },
@@ -1284,7 +1291,7 @@ export default function AIPlanner() {
                 );
               })}
             </nav>
-            <div style={{ position: "fixed", left: "50%", transform: "translateX(-50%)", bottom: 84, width: "100%", maxWidth: 430, pointerEvents: "none", zIndex: 6 }}>
+            <div style={{ position: "fixed", left: "50%", transform: "translateX(-50%)", bottom: "calc(64px + env(safe-area-inset-bottom, 0px) + 20px)", width: "100%", maxWidth: 430, pointerEvents: "none", zIndex: 6 }}>
               <button type="button" aria-label="Новий план" onClick={openBraindump}
                 style={{ position: "absolute", right: 16, bottom: 0, width: 56, height: 56, borderRadius: "50%", background: `linear-gradient(135deg, ${COLOR.tealLight}, ${COLOR.teal})`, color: "#fff", border: "none", boxShadow: "0 8px 20px rgba(13,148,136,.4)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", pointerEvents: "auto", padding: 0 }}>
                 <Plus size={22} />
@@ -1309,7 +1316,7 @@ export default function AIPlanner() {
 
         {/* toast */}
         {toast && (
-          <div style={{ position: "fixed", left: "50%", bottom: 112, transform: "translateX(-50%)", width: "calc(100% - 32px)", maxWidth: 398, background: COLOR.tealInk, color: "#fff", padding: "14px 16px", borderRadius: 12, fontSize: 14, boxShadow: "0 4px 4px rgba(0,0,0,.15), 0 1px 1.5px rgba(0,0,0,.3)", zIndex: 10, textAlign: "left", animation: "om-fade-in .2s ease", display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ position: "fixed", left: "50%", bottom: "calc(64px + env(safe-area-inset-bottom, 0px) + 48px)", transform: "translateX(-50%)", width: "calc(100% - 32px)", maxWidth: 398, background: COLOR.tealInk, color: "#fff", padding: "14px 16px", borderRadius: 12, fontSize: 14, boxShadow: "0 4px 4px rgba(0,0,0,.15), 0 1px 1.5px rgba(0,0,0,.3)", zIndex: 10, textAlign: "left", animation: "om-fade-in .2s ease", display: "flex", alignItems: "center", gap: 12 }}>
             <span style={{ flex: 1 }}>{toast}</span>
             {toastAction && <button type="button" onClick={toastAction} style={{ background: "none", border: "none", color: "#b9f2f8", fontWeight: 600, fontSize: 14, cursor: "pointer", padding: "2px 4px", flex: "none" }}>{toastActionLabel}</button>}
           </div>
