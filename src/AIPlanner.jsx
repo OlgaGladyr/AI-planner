@@ -734,10 +734,7 @@ export default function AIPlanner() {
     }, stepMs);
   };
 
-  const startRecording = () => {
-    if (isRecording) return;
-    if (!supportsSpeech) { startRecordingFallbackDemo(); return; }
-
+  const beginSpeechRecognition = () => {
     const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
     const recognition = new SpeechRecognitionCtor();
     recognition.continuous = true;
@@ -794,6 +791,35 @@ export default function AIPlanner() {
       setIsRecording(false);
       showToast("Не вдалося увімкнути мікрофон — можете просто ввести текст.", 2600);
     }
+  };
+
+  const startRecording = async () => {
+    if (isRecording) return;
+    if (!supportsSpeech) { startRecordingFallbackDemo(); return; }
+
+    // Explicitly request mic permission first, rather than relying on
+    // SpeechRecognition's own implicit permission handling — that doesn't
+    // reliably trigger the browser's permission prompt on every browser/OS
+    // combo, and silently lands on a "not-allowed" error instead of ever
+    // asking. This also lets us tell an actual denial apart from "no mic
+    // present" or "mic in use by another app", instead of one generic message.
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach((t) => t.stop()); // just needed the permission check — SpeechRecognition captures its own audio
+      } catch (err) {
+        if (err && (err.name === "NotFoundError" || err.name === "DevicesNotFoundError")) {
+          showToast("Мікрофон не знайдено на цьому пристрої.", 3600);
+        } else if (err && (err.name === "NotReadableError" || err.name === "TrackStartError")) {
+          showToast("Мікрофон зайнятий іншою програмою — закрийте інші застосунки, що можуть його використовувати.", 3600);
+        } else {
+          showToast("Доступ до мікрофона заблоковано — перевірте дозволи цього сайту в браузері.", 3600);
+        }
+        return;
+      }
+    }
+
+    beginSpeechRecognition();
   };
 
   const stopRecording = () => {
