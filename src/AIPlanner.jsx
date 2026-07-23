@@ -1119,14 +1119,14 @@ export default function AIPlanner() {
 
           {/* ---------------- BRAINDUMP ---------------- */}
           {screen === "braindump" && (
-            <div style={{ minHeight: "100vh", padding: "28px 16px 200px 16px", background: "linear-gradient(180deg, #dbeafe 0%, #eff6ff 35%, #e0edfc 65%, #bfdbfe 100%)" }}>
+            <div style={{ minHeight: "100vh", padding: "28px 16px 200px 16px", background: "linear-gradient(187deg, #f1f7fc 22%, #f3f4ff 44%, #eff2fd 59%, #bdd1f1 87%)" }}>
               <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 14 }}>
-                <button type="button" aria-label="Закрити" onClick={requestCloseBraindump} style={{ border: "none", background: "rgba(255,255,255,.6)", color: "#374151", cursor: "pointer", padding: 0, width: 34, height: 34, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <X size={16} />
+                <button type="button" aria-label="Закрити" onClick={requestCloseBraindump} style={{ border: "none", background: "rgba(255,255,255,.8)", color: COLOR.ink, cursor: "pointer", padding: 0, width: 48, height: 48, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <X size={20} />
                 </button>
               </div>
-              <p style={{ fontSize: 15, color: COLOR.teal, margin: "0 0 4px", fontWeight: 700 }}>Привіт, Алекс 👋</p>
-              <h1 style={{ fontSize: 27, fontWeight: 800, lineHeight: 1.2, margin: "0 0 24px", color: COLOR.tealInk }}>Які у вас плани на сьогодні?</h1>
+              <p style={{ fontSize: 16, color: COLOR.teal, margin: "0 0 4px", fontWeight: 600, letterSpacing: ".15px" }}>Привіт, Алекс 👋</p>
+              <h1 style={{ fontSize: 32, fontWeight: 650, lineHeight: "40px", margin: "0 0 24px", color: COLOR.tealInk }}>Які у вас плани на сьогодні?</h1>
 
               {capturedThoughts.length > 0 && (
                 <div>
@@ -1144,12 +1144,12 @@ export default function AIPlanner() {
 
         {/* fixed input panel — braindump only */}
         {screen === "braindump" && (
-          <div style={{ position: "fixed", left: "50%", transform: "translateX(-50%)", bottom: 0, width: "100%", maxWidth: 430, background: "#fff", borderTop: "1px solid #f1f3f5", padding: 16, display: "flex", flexDirection: "column", gap: 12, zIndex: 7 }}>
-            <div style={{ position: "relative", background: "#f3f4f6", borderRadius: 16, padding: "12px 50px 12px 14px" }}>
+          <div style={{ position: "fixed", left: "50%", transform: "translateX(-50%)", bottom: 0, width: "100%", maxWidth: 430, background: "#fff", border: "1px solid #dbdee1", borderBottom: "none", borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 16, display: "flex", flexDirection: "column", gap: 12, zIndex: 7, boxSizing: "border-box" }}>
+            <div style={{ position: "relative", display: "flex", alignItems: "center", gap: 8 }}>
               <textarea
                 readOnly={isRecording}
                 className="om-hide-scrollbar"
-                style={{ width: "100%", border: "none", background: "transparent", padding: 0, resize: "none", fontSize: 14, fontFamily: "inherit", height: 56, overflowY: "auto", boxSizing: "border-box", color: COLOR.ink }}
+                style={{ flex: 1, border: "none", background: "transparent", padding: 0, resize: "none", fontSize: 16, fontFamily: "inherit", height: 56, overflowY: "auto", boxSizing: "border-box", color: COLOR.ink }}
                 placeholder="Введіть план або натисніть на мікрофон, щоб сказати…"
                 value={textDraft}
                 maxLength={MAX_DRAFT_CHARS}
@@ -1157,8 +1157,8 @@ export default function AIPlanner() {
                 onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendDraft(); } }}
               />
               <button type="button" aria-label={isRecording ? "Зупинити" : "Записати"} onClick={inputBtnAction}
-                style={{ position: "absolute", right: 10, bottom: 10, width: 34, height: 34, borderRadius: "50%", border: "none", background: isRecording ? "#dc2626" : COLOR.teal, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0 }}>
-                {isRecording ? <Square size={13} /> : (textDraft.trim() !== committedText.trim() ? <Send size={15} /> : <Mic size={15} />)}
+                style={{ flex: "none", width: 48, height: 48, borderRadius: "50%", border: "none", background: isRecording ? "#dc2626" : COLOR.teal, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0 }}>
+                {isRecording ? <Square size={16} /> : (textDraft.trim() !== committedText.trim() ? <Send size={18} /> : <Mic size={18} />)}
               </button>
             </div>
             {isRecording && <p style={{ fontSize: 12, color: COLOR.faint, margin: "-4px 0 0", textAlign: "center" }}>Слухаю…</p>}
@@ -1168,7 +1168,7 @@ export default function AIPlanner() {
             {!isRecording && isCapturing && <p style={{ fontSize: 12, color: COLOR.faint, margin: "-4px 0 0", textAlign: "center" }}>Опрацьовую ваш план…</p>}
             {capturedThoughts.length > 0 && (
               <button type="button" disabled={isParsing || isCapturing} onClick={structureDay}
-                style={{ width: "100%", padding: "13px 0", border: "none", borderRadius: 14, background: COLOR.teal, color: "#fff", fontSize: 15, fontWeight: 700, cursor: (isParsing || isCapturing) ? "default" : "pointer", opacity: (isParsing || isCapturing) ? 0.85 : 1 }}>
+                style={{ width: "100%", padding: "13px 0", border: "none", borderRadius: 999, background: COLOR.teal, color: "#fff", fontSize: 15, fontWeight: 700, cursor: (isParsing || isCapturing) ? "default" : "pointer", opacity: (isParsing || isCapturing) ? 0.85 : 1 }}>
                 {isParsing ? "Формую ваш день…" : "Прийняти плани"}
               </button>
             )}
