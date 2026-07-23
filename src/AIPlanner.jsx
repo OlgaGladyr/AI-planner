@@ -618,7 +618,10 @@ function EmptyState({ children }) {
 
 export default function AIPlanner() {
   const today = useMemo(() => startOfDay(new Date()), []);
-  const todayLabel = useMemo(() => new Date().toLocaleDateString("uk-UA", { weekday: "long", month: "short", day: "numeric" }), []);
+  const todayLabel = useMemo(() => {
+    const s = new Date().toLocaleDateString("uk-UA", { weekday: "long", day: "numeric", month: "long" });
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }, []);
 
   const [screen, setScreen] = useState("today");
   const [lastTab, setLastTab] = useState("today");
@@ -1027,6 +1030,7 @@ export default function AIPlanner() {
         html, body { overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch; }
         .om-app-shell { min-height: 100vh; min-height: 100dvh; }
         .om-app-inner { min-height: 100vh; min-height: 100dvh; }
+        .om-screen-fill { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; }
         @keyframes om-fade-in { from { opacity:0; transform:translate(-50%,4px);} to { opacity:1; transform:translate(-50%,0);} }
         @keyframes om-sheet-in { from { transform:translate(-50%,100%);} to { transform:translate(-50%,0);} }
         @keyframes om-move-in { 0%{transform:translateY(-18px) scale(.97);opacity:.4;background:#ccfbf1;box-shadow:0 8px 20px rgba(13,148,136,.25)} 55%{transform:translateY(3px) scale(1.01);background:#ccfbf1} 100%{transform:translateY(0) scale(1);opacity:1;background:transparent;box-shadow:none} }
@@ -1040,13 +1044,13 @@ export default function AIPlanner() {
 
           {/* ---------------- TODAY ---------------- */}
           {screen === "today" && (
-            <div style={{ background: COLOR.panel }}>
-              <div style={{ background: `linear-gradient(160deg, ${COLOR.teal} 0%, ${COLOR.tealDark} 100%)`, padding: "28px 16px 44px 16px" }}>
+            <div className="om-screen-fill" style={{ background: COLOR.panel }}>
+              <div style={{ background: `linear-gradient(160deg, ${COLOR.teal} 0%, ${COLOR.tealDark} 100%)`, padding: "28px 16px 44px 16px", flex: "none" }}>
                 <h1 style={{ fontSize: 28, fontWeight: 800, margin: 0, color: "#fff" }}>Плани на сьогодні</h1>
                 <p style={{ fontSize: 16, fontWeight: 600, color: "rgba(255,255,255,.85)", margin: "6px 0 0" }}>{todayLabel}</p>
               </div>
 
-              <div style={{ background: COLOR.panel, borderTopLeftRadius: 24, borderTopRightRadius: 24, marginTop: -24, position: "relative", padding: "20px 16px 20px 16px" }}>
+              <div style={{ background: COLOR.panel, borderTopLeftRadius: 24, borderTopRightRadius: 24, marginTop: -24, position: "relative", padding: "20px 16px 20px 16px", flex: "1 0 auto" }}>
                 {todayTasks.length > 0 ? (
                   <>
                     {todayPlanned.length > 0 && (
@@ -1080,8 +1084,8 @@ export default function AIPlanner() {
 
           {/* ---------------- CALENDAR ---------------- */}
           {screen === "calendar" && (
-            <div style={{ background: COLOR.panel }}>
-              <div style={{ background: `linear-gradient(160deg, ${COLOR.teal} 0%, ${COLOR.tealDark} 100%)`, padding: "28px 16px 20px 16px" }}>
+            <div className="om-screen-fill" style={{ background: COLOR.panel }}>
+              <div style={{ background: `linear-gradient(160deg, ${COLOR.teal} 0%, ${COLOR.tealDark} 100%)`, padding: "28px 16px 20px 16px", flex: "none" }}>
                 <h1 style={{ fontSize: 28, fontWeight: 800, margin: "0 0 16px", color: "#fff" }}>Календар</h1>
                 <div className="om-hide-scrollbar" style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4 }}>
                   {weekDays.map((d) => {
@@ -1107,7 +1111,7 @@ export default function AIPlanner() {
                 </div>
               </div>
 
-              <div style={{ background: COLOR.panel, borderTopLeftRadius: 24, borderTopRightRadius: 24, marginTop: -16, position: "relative", padding: "20px 16px 20px 16px" }}>
+              <div style={{ background: COLOR.panel, borderTopLeftRadius: 24, borderTopRightRadius: 24, marginTop: -16, position: "relative", padding: "20px 16px 20px 16px", flex: "1 0 auto" }}>
                 {upcomingDay === null && unscheduledTasks.length > 0 && (
                   <div style={{ marginBottom: 24 }}>
                     <SectionLabel>Потребує дати ({unscheduledTasks.length})</SectionLabel>
@@ -1165,12 +1169,12 @@ export default function AIPlanner() {
 
           {/* ---------------- MORE ---------------- */}
           {screen === "more" && (
-            <div style={{ background: COLOR.panel }}>
-              <div style={{ background: "linear-gradient(180deg, #51aa3a 0%, #265f18 100%)", padding: "28px 16px 20px 16px" }}>
+            <div className="om-screen-fill" style={{ background: COLOR.panel }}>
+              <div style={{ background: "linear-gradient(180deg, #51aa3a 0%, #265f18 100%)", padding: "28px 16px 20px 16px", flex: "none" }}>
                 <h1 style={{ fontSize: 28, fontWeight: 800, margin: 0, color: "#fff" }}>Інше</h1>
               </div>
 
-              <div style={{ background: COLOR.panel, borderTopLeftRadius: 24, borderTopRightRadius: 24, marginTop: -16, position: "relative", padding: "20px 16px 24px 16px", textAlign: "center" }}>
+              <div style={{ background: COLOR.panel, borderTopLeftRadius: 24, borderTopRightRadius: 24, marginTop: -16, position: "relative", padding: "20px 16px 24px 16px", textAlign: "center", flex: "1 0 auto" }}>
                 <div style={{ width: 112, height: 112, borderRadius: "50%", margin: "16px auto 14px", background: "#cdf9c2", display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <span style={{ fontSize: 32, fontWeight: 700, color: "#0d2f04" }}>АР</span>
                 </div>
